@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sidebar-w: 240px;
+}
+
+body {
+  @apply bg-slate-950 text-slate-100 antialiased;
+}
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* Transición de página */
+.page-fade {
+  animation: fadeIn 0.18s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Pulse para estados críticos */
+.pulse-red {
+  animation: pulseRed 1.4s ease-in-out infinite;
+}
+@keyframes pulseRed {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}

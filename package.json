@@ -1,0 +1,44 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "build": "prisma generate && prisma migrate deploy",
+    "test": "jest --forceExit",
+    "test:watch": "jest --watch",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:seed": "node prisma/seed.js",
+    "db:studio": "prisma studio"
+    },
+    "prisma": {
+      "seed": "node prisma\\seed.js"
+    },
+    "dependencies": {
+    "@googlemaps/google-maps-services-js": "^3.4.0",
+    "@prisma/client": "^5.13.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.1.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.7.5",
+    "twilio": "^5.1.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0",
+    "prisma": "^5.13.0",
+    "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"]
+  }
+}

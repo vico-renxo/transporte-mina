@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Rol {
+  ADMIN
+  SUPERVISOR
+  GERENCIA
+  CONDUCTOR
+  PASAJERO
+}
+
+enum EstadoPasajeroTurno {
+  NORMAL
+  POR_MIS_MEDIOS
+  AUSENTE
+}
+
+enum EstadoRuta {
+  PENDIENTE
+  EN_RUTA
+  COMPLETADA
+  SUSPENDIDA
+}
+
+enum EstadoVehiculo {
+  ACTIVO
+  INACTIVO
+  MANTENIMIENTO
+}
+
+// ─── Modelos ─────────────────────────────────────────────────────────────────
+
+model Usuario {
+  id           String   @id @default(cuid())
+  nombre       String
+  email        String   @unique
+  telefono     String?
+  password     String
+  rol          Rol
+  fcmToken     String?
+  activo       Boolean  @default(true)
+  creadoEn     DateTime @default(now())
+
+  conductor Conductor?
+  pasajero  Pasajero?
+}
+
+model Conductor {
+  id        String          @id @default(cuid())
+  usuarioId String          @unique
+  licencia  String
+  telefono  String?
+  usuario   Usuario         @relation(fields: [usuarioId], references: [id])
+  ejecuciones RutaEjecucion[]
+}
+
+model Vehiculo {
+  id        String         @id @default(cuid())
+  placa     String         @unique
+  marca     String         @default("")
+  modelo    String
+  anio      Int            @default(2020)
+  capacidad Int            @default(20)
+  estado    EstadoVehiculo @default(ACTIVO)
+  creadoEn  DateTime       @default(now())
+  ejecuciones RutaEjecucion[]
+}
+
+model Ruta {
+  id         String          @id @default(cuid())
+  nombre     String
+  origen     String          @default("")
+  destino    String          @default("")
+  horaInicio String
+  dias       String[]        @default([])
+  activa     Boolean         @default(true)
+  creadoEn   DateTime        @default(now())
+  paraderos  Paradero[]
+  ejecuciones RutaEjecucion[]
+  pasajeros  Pasajero[]
+}
+
+model Paradero {
+  id        String     @id @default(cuid())
+  rutaId    String
+  nombre    String
+  direccion String     @default("")
+  lat       Float      @default(0)
+  lng       Float      @default(0)
+  orden     Int
+  ruta      Ruta       @relation(fields: [rutaId], references: [id])
+  pasajeros Pasajero[]
+  checkins  Checkin[]
+}
+
+model Pasajero {
+  id              String        @id @default(cuid())
+  usuarioId       String        @unique
+  rutaId          String?
+  paraderoId      String?
+  tiempoAlertaMin Int           @default(5)
+  aprobado        Boolean       @default(false)
+  activo          Boolean       @default(true)
+  creadoEn        DateTime      @default(now())
+  usuario         Usuario       @relation(fields: [usuarioId], references: [id])
+  ruta            Ruta?         @relation(fields: [rutaId], references: [id])
+  paradero        Paradero?     @relation(fields: [paraderoId], references: [id])
+  estados         EstadoTurno[]
+  checkins        Checkin[]
+  calificaciones  Calificacion[]
+}
+
+model RutaEjecucion {
+  id           String        @id @default(cuid())
+  rutaId       String
+  conductorId  String
+  vehiculoId   String
+  fecha        DateTime      @default(now())
+  estado       EstadoRuta    @default(PENDIENTE)
+  iniciadaEn   DateTime?
+  finalizadaEn DateTime?
+  ruta         Ruta          @relation(fields: [rutaId], references: [id])
+  conductor    Conductor     @relation(fields: [conductorId], references: [id])
+  vehiculo     Vehiculo      @relation(fields: [vehiculoId], references: [id])
+  coordenadas  Coordenada[]
+  checkins     Checkin[]
+  calificaciones Calificacion[]
+}
+
+model Coordenada {
+  id              String        @id @default(cuid())
+  rutaEjecucionId String
+  lat             Float
+  lng             Float
+  velocidad       Float?
+  timestamp       DateTime      @default(now())
+  rutaEjecucion   RutaEjecucion @relation(fields: [rutaEjecucionId], references: [id])
+}
+
+model EstadoTurno {
+  id          String              @id @default(cuid())
+  pasajeroId  String
+  rutaId      String
+  fecha       DateTime
+  estado      EstadoPasajeroTurno @default(NORMAL)
+  declaradoEn DateTime?
+  pasajero    Pasajero            @relation(fields: [pasajeroId], references: [id])
+
+  @@unique([pasajeroId, rutaId, fecha])
+}
+
+model Checkin {
+  id              String        @id @default(cuid())
+  rutaEjecucionId String
+  paraderoId      String
+  pasajeroId      String
+  subio           Boolean
+  timestamp       DateTime      @default(now())
+  rutaEjecucion   RutaEjecucion @relation(fields: [rutaEjecucionId], references: [id])
+  paradero        Paradero      @relation(fields: [paraderoId], references: [id])
+  pasajero        Pasajero      @relation(fields: [pasajeroId], references: [id])
+}
+
+model Calificacion {
+  id              String        @id @default(cuid())
+  rutaEjecucionId String
+  pasajeroId      String
+  estrellas       Int
+  comentario      String?
+  timestamp       DateTime      @default(now())
+  rutaEjecucion   RutaEjecucion @relation(fields: [rutaEjecucionId], references: [id])
+  pasajero        Pasajero      @relation(fields: [pasajeroId], references: [id])
+}
