@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TransporteMina — Simulacion 3 Actores</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
+header{background:linear-gradient(135deg,#161b22,#1c2128);border-bottom:1px solid #30363d;padding:12px 20px;display:flex;align-items:center;gap:12px}
+header h1{font-size:1.2rem;color:#58a6ff;font-weight:700}
+.sb{background:#161b22;border-bottom:1px solid #30363d;padding:8px 20px;display:flex;align-items:center;gap:16px;font-size:.8rem}
+.si{display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%}
+.dot.red{background:#f85149}.dot.green{background:#3fb950;animation:pulse 1.5s infinite}.dot.yellow{background:#d29922}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.sc{background:#161b22;border-bottom:1px solid #30363d;padding:10px 20px;display:flex;align-items:center;gap:12px}
+.btn{padding:8px 20px;border-radius:6px;border:none;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s}
+.btn-p{background:#238636;color:#fff}.btn-p:disabled{background:#444;opacity:.6;cursor:not-allowed}
+.btn-d{background:#da3633;color:#fff}.btn-d:disabled{background:#444;opacity:.6;cursor:not-allowed}
+.pb-c{flex:1;background:#21262d;border-radius:4px;height:8px;overflow:hidden}
+.pb{height:100%;background:linear-gradient(90deg,#238636,#3fb950);transition:width .5s;border-radius:4px}
+.panels{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#30363d;height:calc(100vh - 145px)}
+.panel{background:#0d1117;display:flex;flex-direction:column;overflow:hidden}
+.ph{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #21262d;font-size:.85rem;font-weight:700}
+.rb{font-size:.65rem;padding:2px 8px;border-radius:12px;font-weight:600}
+.ba{background:#1f4b87;color:#58a6ff}.bc{background:#1b4332;color:#3fb950}.bp{background:#4a1d52;color:#d2a8ff}
+.pb2{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.mc{border-radius:8px;overflow:hidden;min-height:160px}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sc2{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:10px 12px}
+.sl{font-size:.7rem;color:#8b949e;text-transform:uppercase}
+.sv{font-size:1.4rem;font-weight:700}.sv.g{color:#3fb950}.sv.b{color:#58a6ff}.sv.pp{color:#d2a8ff}.sv.o{color:#f0883e}
+.ic{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:10px}
+.ic h4{font-size:.75rem;color:#8b949e;margin-bottom:6px;text-transform:uppercase}
+.ir{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #21262d;font-size:.8rem}
+.ir:last-child{border-bottom:none}.ir span:last-child{color:#3fb950;font-weight:600}
+.pl{display:flex;flex-direction:column;gap:3px}
+.pi{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;background:#161b22;border:1px solid #21262d;font-size:.78rem;transition:all .3s}
+.pi.passed{border-color:#3fb950;background:#0d2818}.pi.current{border-color:#f0883e;background:#2d1500;animation:glow 1s infinite alternate}.pi.upc{color:#8b949e}
+@keyframes glow{from{box-shadow:0 0 4px #f0883e40}to{box-shadow:0 0 12px #f0883e80}}
+.pd{width:9px;height:9px;border-radius:50%;background:#30363d;flex-shrink:0}
+.pi.passed .pd{background:#3fb950}.pi.current .pd{background:#f0883e}
+.lb{background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:8px;font-size:.7rem;font-family:monospace;max-height:100px;overflow-y:auto;color:#8b949e}
+.ll{padding:1px 0}.ll.s{color:#3fb950}.ll.e{color:#f85149}.ll.i{color:#58a6ff}.ll.w{color:#d29922}
+.gd{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:10px;font-family:monospace;font-size:.8rem}
+.gc{color:#3fb950;font-size:.95rem;font-weight:700}.gsp{color:#58a6ff;margin-top:3px}
+.et{background:linear-gradient(135deg,#1b4332,#0d2818);border:1px solid #3fb950;border-radius:8px;padding:14px;text-align:center}
+.et-t{font-size:2rem;font-weight:700;color:#3fb950}.et-l{font-size:.72rem;color:#8b949e;margin-top:3px}
+.ab{background:#2d1500;border:1px solid #f0883e;border-radius:8px;padding:8px 12px;font-size:.8rem;color:#f0883e;display:none;align-items:center;gap:6px}
+.ab.show{display:flex}
+.lbadge{font-size:.73rem;padding:2px 7px;border-radius:4px;background:#21262d;color:#8b949e}
+.lbadge.ok{background:#0d2818;color:#3fb950}
+</style>
+</head>
+<body>
+<header>
+<span style="font-size:1.4rem">&#128652;</span>
+<div><h1>TransporteMina &mdash; Simulacion en Vivo</h1><span style="font-size:.78rem;color:#8b949e">Sistema transporte personal &middot; Arequipa, Peru &middot; Ruta 1: Mina Central &rarr; Plaza de Armas</span></div>
+<div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+<span class="lbadge" id="ls-a">Admin: &ndash;</span>
+<span class="lbadge" id="ls-c">Conductor: &ndash;</span>
+<span class="lbadge" id="ls-p">Pasajero: &ndash;</span>
+</div>
+</header>
+<div class="sb">
+<div class="si"><div class="dot yellow" id="d-be"></div><span id="s-be">Conectando backend...</span></div>
+<div class="si"><div class="dot yellow" id="d-ws"></div><span id="s-ws">WebSocket: iniciando...</span></div>
+<div class="si" style="margin-left:auto"><span style="color:#8b949e">API:</span><span style="color:#58a6ff;font-size:.73rem"> transporte-mina.onrender.com</span></div>
+</div>
+<div class="sc">
+<button class="btn btn-p" id="btn-s" onclick="start()" disabled>&#9654; Iniciar Simulacion</button>
+<button class="btn btn-d" id="btn-x" onclick="stop()" disabled>&#9632; Detener</button>
+<span style="font-size:.78rem;color:#8b949e">Progreso:</span>
+<div class="pb-c"><div class="pb" id="prg" style="width:0%"></div></div>
+<span style="font-size:.78rem;color:#8b949e" id="prg-l">0 / 5 paraderos</span>
+</div>
+<div class="panels">
+<!-- ADMIN -->
+<div class="panel">
+<div class="ph" style="background:#0d1f3c">&#128100; Panel Administrador <span class="rb ba">ADMIN</span>
+<a href="https://transporte-mina.vercel.app/dashboard" target="_blank" style="margin-left:auto;font-size:.7rem;color:#58a6ff;text-decoration:none">&#8599; Panel real</a></div>
+<div class="pb2">
+<div class="sg">
+<div class="sc2"><div class="sl">Rutas activas</div><div class="sv g" id="a-ra">0</div></div>
+<div class="sc2"><div class="sl">Conductores</div><div class="sv b" id="a-co">0</div></div>
+<div class="sc2"><div class="sl">Pasajeros abordo</div><div class="sv pp" id="a-pa">0</div></div>
+<div class="sc2"><div class="sl">Velocidad prom.</div><div class="sv o" id="a-vel">0 km/h</div></div>
+</div>
+<div class="mc" id="map-a" style="height:200px"></div>
+<div class="ic"><h4>Ejecucion activa</h4>
+<div class="ir"><span>Ruta</span><span id="a-rn">&mdash;</span></div>
+<div class="ir"><span>Conductor</span><span id="a-cn">&mdash;</span></div>
+<div class="ir"><span>Vehiculo</span><span id="a-vh">&mdash;</span></div>
+<div class="ir"><span>Estado</span><span id="a-st">&mdash;</span></div>
+<div class="ir"><span>Ultimo GPS</span><span id="a-gp">&mdash;</span></div>
+</div>
+<div class="lb" id="log-a"><div class="ll i">[Sistema] Panel administrador listo</div></div>
+</div></div>
+<!-- CONDUCTOR -->
+<div class="panel">
+<div class="ph" style="background:#0d2818">&#128652; App Conductor <span class="rb bc">CONDUCTOR</span></div>
+<div class="pb2">
+<div class="ic"><h4>Conductor</h4>
+<div class="ir"><span>Nombre</span><span>Juan Mamani</span></div>
+<div class="ir"><span>Licencia</span><span>BII-1234</span></div>
+<div class="ir"><span>Vehiculo</span><span>ABA-123 &middot; Toyota Hiace</span></div>
+<div class="ir"><span>Turno</span><span id="c-st">&#128993; Esperando</span></div>
+</div>
+<div class="gd">
+<div style="color:#8b949e;font-size:.68rem;margin-bottom:3px">&#128205; POSICION GPS ACTUAL</div>
+<div class="gc" id="c-pos">Esperando senal...</div>
+<div class="gsp" id="c-spd">-- km/h</div>
+<div style="color:#8b949e;margin-top:4px;font-size:.68rem" id="c-dur">Duracion: 0:00</div>
+</div>
+<div class="mc" id="map-c" style="height:160px"></div>
+<div>
+<div style="font-size:.72rem;color:#8b949e;margin-bottom:5px;text-transform:uppercase">Recorrido de ruta</div>
+<div class="pl" id="plist"></div>
+</div>
+<div class="ab" id="c-al">&#9888;&#65039; <span id="c-alt">Alerta</span></div>
+<div class="lb" id="log-c"><div class="ll i">[App] Conductor listo</div></div>
+</div></div>
+<!-- PASAJERO -->
+<div class="panel">
+<div class="ph" style="background:#1f0d36">&#128100; App Pasajera <span class="rb bp">PASAJERO</span></div>
+<div class="pb2">
+<div class="ic"><h4>Pasajera</h4>
+<div class="ir"><span>Nombre</span><span>Maria Lopez</span></div>
+<div class="ir"><span>Mi paradero</span><span>Sachaca (N&deg;3)</span></div>
+<div class="ir"><span>Ruta</span><span id="p-ruta">Ruta 1 &mdash; Mina Central</span></div>
+<div class="ir"><span>Estado</span><span id="p-st">&#128308; Bus no iniciado</span></div>
+</div>
+<div class="et">
+<div class="et-t" id="p-eta">&mdash;</div>
+<div class="et-l">Tiempo estimado llegada a Sachaca</div>
+</div>
+<div class="mc" id="map-p" style="height:160px"></div>
+<div class="ic"><h4>Info bus en tiempo real</h4>
+<div class="ir"><span>Distancia a mi paradero</span><span id="p-dist">&mdash;</span></div>
+<div class="ir"><span>Ultimo paradero pasado</span><span id="p-ult">&mdash;</span></div>
+<div class="ir"><span>Proximo paradero</span><span id="p-prx">&mdash;</span></div>
+<div class="ir"><span>Velocidad</span><span id="p-vel">&mdash;</span></div>
+</div>
+<div class="ab" id="p-al">&#128276; <span id="p-alt">El bus se acerca</span></div>
+<div class="lb" id="log-p"><div class="ll i">[App] Esperando inicio de ruta...</div></div>
+</div></div>
+</div>
+<script>
+const API='https://transporte-mina.onrender.com';
+let aT,cT,pT,rutaId,condId,vehId,ejecId,simInt,step=0,running=false,t0,sock;
+const ROUTE=[
+  {lat:-16.4090,lng:-71.5375,spd:0},{lat:-16.4120,lng:-71.5430,spd:35},
+  {lat:-16.4155,lng:-71.5510,spd:50},{lat:-16.4200,lng:-71.5700,spd:30},
+  {lat:-16.4220,lng:-71.5660,spd:45},{lat:-16.4280,lng:-71.5600,spd:55},
+  {lat:-16.4300,lng:-71.5550,spd:25},{lat:-16.4270,lng:-71.5490,spd:50},
+  {lat:-16.4250,lng:-71.5400,spd:30},{lat:-16.4200,lng:-71.5380,spd:45},
+  {lat:-16.4120,lng:-71.5360,spd:60},{lat:-16.3989,lng:-71.5350,spd:10}
+];
+const PARS=[
+  {n:'Mina Central',lat:-16.4090,lng:-71.5375,st:0},
+  {n:'Variante Uchumayo',lat:-16.4200,lng:-71.5700,st:3},
+  {n:'Sachaca',lat:-16.4300,lng:-71.5550,st:6},
+  {n:'Hunter',lat:-16.4250,lng:-71.5400,st:8},
+  {n:'Plaza de Armas',lat:-16.3989,lng:-71.5350,st:11}
+];
+let mA,mC,mP,mkA,mkC,mkP;
+
+function log(id,msg,t=''){
+  const b=document.getElementById('log-'+id);
+  const d=document.createElement('div');d.className='ll '+t;
+  const ts=new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  d.textContent='['+ts+'] '+msg;b.appendChild(d);b.scrollTop=b.scrollHeight;
+}
+function dist(a,b,c,d){
+  const R=6371000,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
+  const x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+function fd(m){return m>1000?(m/1000).toFixed(1)+'km':Math.round(m)+'m'}
+
+function initMaps(){
+  const c=[-16.41,-71.55],o={zoomControl:false,attributionControl:false};
+  mA=L.map('map-a',o).setView(c,12);
+  mC=L.map('map-c',o).setView(c,12);
+  mP=L.map('map-p',o).setView(c,12);
+  const tl='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  [mA,mC,mP].forEach(m=>L.tileLayer(tl,{maxZoom:18}).addTo(m));
+  PARS.forEach((p,i)=>{
+    const ic=L.divIcon({html:`<div style="background:#161b22;border:2px solid #30363d;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#8b949e;font-weight:700">${i+1}</div>`,className:'',iconSize:[18,18],iconAnchor:[9,9]});
+    [mA,mC,mP].forEach(m=>L.marker([p.lat,p.lng],{icon:ic}).addTo(m).bindPopup(p.n));
+  });
+  const rl=PARS.map(p=>[p.lat,p.lng]);
+  [mA,mC,mP].forEach(m=>L.polyline(rl,{color:'#30363d',weight:2,dashArray:'4,4'}).addTo(m));
+  const pI=L.divIcon({html:'<div style="background:#4a1d52;border:2px solid #d2a8ff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px">&#128100;</div>',className:'',iconSize:[22,22],iconAnchor:[11,11]});
+  L.marker([PARS[2].lat,PARS[2].lng],{icon:pI}).addTo(mP).bindPopup('Maria Lopez - Sachaca');
+}
+
+function initPList(){
+  const l=document.getElementById('plist');l.innerHTML='';
+  PARS.forEach((p,i)=>{
+    const d=document.createElement('div');d.className='pi upc';d.id='pi-'+i;
+    d.innerHTML=`<div class="pd"></div><span style="flex:1">${i+1}. ${p.n}</span><span style="color:#8b949e;font-size:.7rem" id="pt-${i}">&mdash;</span>`;
+    l.appendChild(d);
+  });
+}
+
+async function login(email,pass){
+  const r=await fetch(API+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+  if(!r.ok)throw new Error(r.status);return r.json();
+}
+async function api(path,tok,method='GET',body=null){
+  const o={method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok}};
+  if(body)o.body=JSON.stringify(body);
+  const r=await fetch(API+path,o);
+  if(!r.ok){const e=await r.text();throw new Error(path+' '+r.status+': '+e)}
+  return r.json();
+}
+
+function updateMaps(lat,lng,spd){
+  const ic=L.divIcon({html:'<div style="background:#1b4332;border:2px solid #3fb950;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px">&#128652;</div>',className:'',iconSize:[26,26],iconAnchor:[13,13]});
+  [[mA,'mkA'],[mC,'mkC'],[mP,'mkP']].forEach(([m,k])=>{
+    if(window[k])window[k].setLatLng([lat,lng]);
+    else window[k]=L.marker([lat,lng],{icon:ic}).addTo(m);
+  });
+  document.getElementById('a-ra').textContent='1';
+  document.getElementById('a-co').textContent='1';
+  document.getElementById('a-vel').textContent=spd+' km/h';
+  document.getElementById('a-gp').textContent=new Date().toLocaleTimeString('es-PE');
+  document.getElementById('a-st').textContent='&#127802; EN RUTA';
+}
+
+async function loginAll(){
+  log('a','Autenticando usuarios...','i');
+  try{const r=await login('admin@empresa.com','admin123');aT=r.token;document.getElementById('ls-a').textContent='Admin: OK';document.getElementById('ls-a').className='lbadge ok';log('a','Login admin OK','s');}catch(e){log('a','Error admin: '+e,'e');}
+  try{const r=await login('conductor@empresa.com','admin123');cT=r.token;document.getElementById('ls-c').textContent='Conductor: OK';document.getElementById('ls-c').className='lbadge ok';log('c','Login Juan Mamani OK','s');}catch(e){log('c','Error conductor: '+e,'e');}
+  try{const r=await login('pasajero@empresa.com','admin123');pT=r.token;document.getElementById('ls-p').textContent='Pasajero: OK';document.getElementById('ls-p').className='lbadge ok';log('p','Login Maria Lopez OK','s');}catch(e){log('p','Error pasajero: '+e,'e');}
+}
+
+async function loadData(){
+  try{const r=await api('/api/rutas',aT);if(r.length){rutaId=r[0].id;document.getElementById('a-rn').textContent=r[0].nombre;log('a','Ruta: '+r[0].nombre,'s');}}catch(e){log('a','Rutas: '+e,'e');}
+  try{const r=await api('/api/conductores',aT);if(r.length){condId=r[0].id;document.getElementById('a-cn').textContent=r[0].usuario?.nombre||'Juan Mamani';}}catch(e){log('a','Conductores: '+e,'e');}
+  try{const r=await api('/api/vehiculos',aT);if(r.length){vehId=r[0].id;document.getElementById('a-vh').textContent=r[0].placa+' '+r[0].modelo;}}catch(e){log('a','Vehiculos: '+e,'e');}
+}
+
+function connectWS(){
+  sock=io(API,{transports:['websocket']});
+  sock.on('connect',()=>{document.getElementById('d-ws').className='dot green';document.getElementById('s-ws').textContent='WebSocket: conectado OK';log('a','WS conectado','s');});
+  sock.on('disconnect',()=>{document.getElementById('d-ws').className='dot red';document.getElementById('s-ws').textContent='WebSocket: desconectado';});
+  sock.on('gps:update',d=>{if(d.lat)updateMaps(d.lat,d.lng,d.velocidad||0);});
+}
+
+async function start(){
+  if(!aT){alert('Tokens no cargados, espera un momento');return;}
+  document.getElementById('btn-s').disabled=true;
+  document.getElementById('btn-x').disabled=false;
+  running=true;step=0;t0=Date.now();
+  log('a','=== INICIO SIMULACION ===','w');
+  log('c','=== INICIO TURNO ===','w');
+  log('p','=== BUS EN CAMINO ===','w');
+  try{
+    const b={conductorId:condId,vehiculoId:vehId};
+    const r=await api('/api/rutas/'+rutaId+'/iniciar',aT,'POST',b);
+    ejecId=r.id||r.ejecucionId||(r.ejecucion&&r.ejecucion.id);
+    log('a','Ejecucion iniciada: '+(ejecId||JSON.stringify(r).substring(0,60)),'s');
+    document.getElementById('c-st').textContent='&#127802; EN RUTA';
+    document.getElementById('p-st').textContent='&#127993; Bus en camino...';
+    document.getElementById('a-pa').textContent='1';
+  }catch(e){log('a','Inicio ruta: '+e,'e');ejecId='sim';}
+  simInt=setInterval(tick,2200);tick();
+}
+
+async function tick(){
+  if(!running||step>=ROUTE.length){if(step>=ROUTE.length)await finish();return;}
+  const pt=ROUTE[step];
+  updateMaps(pt.lat,pt.lng,pt.spd);
+  document.getElementById('c-pos').textContent=pt.lat.toFixed(5)+', '+pt.lng.toFixed(5);
+  document.getElementById('c-spd').textContent=pt.spd+' km/h';
+  const el=Math.floor((Date.now()-t0)/1000);
+  document.getElementById('c-dur').textContent='Duracion: '+Math.floor(el/60)+':'+(el%60).toString().padStart(2,'0');
+  if(ejecId&&ejecId!=='sim'&&cT){
+    try{await api('/api/gps/coordenada',cT,'POST',{rutaEjecucionId:ejecId,lat:pt.lat,lng:pt.lng,velocidad:pt.spd});}catch(_){}
+  }
+  PARS.forEach((p,i)=>{
+    const el=document.getElementById('pi-'+i);if(!el)return;
+    if(step>=p.st+1){el.className='pi passed';el.querySelector('.pd').style.background='#3fb950';document.getElementById('pt-'+i).textContent='Pasado';}
+    else if(step===p.st){el.className='pi current';document.getElementById('pt-'+i).textContent='Aqui';if(i>0)log('c','Paradero: '+p.n,'s');}
+  });
+  const myP=PARS[2];
+  const d=dist(pt.lat,pt.lng,myP.lat,myP.lng);
+  document.getElementById('p-dist').textContent=fd(d);
+  document.getElementById('p-vel').textContent=pt.spd+' km/h';
+  if(pt.spd>0){const es=d/(pt.spd/3.6);document.getElementById('p-eta').textContent=d<100?'Llegando!':Math.ceil(es/60)+' min';}
+  let ult='&mdash;',prx='&mdash;';
+  PARS.forEach((p,i)=>{if(step>p.st)ult=p.n;else if(prx==='&mdash;'&&step<=p.st)prx=p.n;});
+  document.getElementById('p-ult').textContent=ult;
+  document.getElementById('p-prx').textContent=prx;
+  if(d<600&&d>80){
+    document.getElementById('p-al').classList.add('show');
+    document.getElementById('p-alt').textContent='El bus esta a '+fd(d)+' de tu paradero!';
+    document.getElementById('p-st').textContent='&#128992; Bus muy cerca!';
+    log('p','Bus a '+fd(d)+' de Sachaca','w');
+    if(!window._ca){window._ca=true;document.getElementById('c-al').classList.add('show');document.getElementById('c-alt').textContent='Pasajero esperando en Sachaca (Maria Lopez)';log('c','Alerta: pasajero en Sachaca','w');}
+  }else if(d<80){document.getElementById('p-st').textContent='&#127802; Bus en mi paradero!';document.getElementById('p-eta').textContent='Llegando!';}
+  const pct=Math.round(step/(ROUTE.length-1)*100);
+  document.getElementById('prg').style.width=pct+'%';
+  document.getElementById('prg-l').textContent=PARS.filter((p,i)=>step>p.st).length+' / 5 paraderos';
+  step++;
+}
+
+async function finish(){
+  clearInterval(simInt);running=false;
+  document.getElementById('btn-s').disabled=false;document.getElementById('btn-x').disabled=true;
+  log('a','=== RUTA COMPLETADA ===','s');log('c','Turno finalizado - Plaza de Armas','s');log('p','Viaje completado','s');
+  document.getElementById('c-st').textContent='Turno completado';
+  document.getElementById('p-st').textContent='Viaje completado';
+  document.getElementById('a-ra').textContent='0';document.getElementById('a-co').textContent='0';document.getElementById('a-pa').textContent='0';
+  document.getElementById('prg').style.width='100%';document.getElementById('prg-l').textContent='5 / 5 paraderos';
+  if(ejecId&&ejecId!=='sim'){try{await api('/api/rutas/'+ejecId+'/finalizar',aT,'POST');log('a','Finalizado en backend','s');}catch(e){log('a','Finalizar: '+e,'e');}}
+}
+
+function stop(){clearInterval(simInt);running=false;document.getElementById('btn-s').disabled=false;document.getElementById('btn-x').disabled=true;log('a','Simulacion detenida','w');}
+
+async function checkBackend(){
+  try{const r=await fetch(API+'/health');const d=await r.json();document.getElementById('d-be').className='dot green';document.getElementById('s-be').textContent='Backend: conectado OK (v'+d.version+')';log('a','Backend OK','s');return true;}
+  catch(e){document.getElementById('d-be').className='dot red';document.getElementById('s-be').textContent='Backend: desconectado (Render free puede tardar 30s...)';log('a','Backend no responde, reintentando...','e');return false;}
+}
+
+async function init(){
+  initMaps();initPList();
+  log('a','Verificando backend...','i');
+  let ok=await checkBackend();
+  if(!ok){await new Promise(r=>setTimeout(r,20000));ok=await checkBackend();}
+  await loginAll();await loadData();connectWS();
+  document.getElementById('btn-s').disabled=false;
+  log('a','Sistema listo. Presiona Iniciar Simulacion','s');
+}
+init();
+</script>
+</body>
+</html>
