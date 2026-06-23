@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TransporteMina — Simulacion 3 Actores</title>
+<title>TransporteMina â Simulacion 3 Actores</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -53,7 +53,7 @@ header h1{font-size:1.2rem;color:#58a6ff;font-weight:700}
 .ab{background:#2d1500;border:1px solid #f0883e;border-radius:8px;padding:8px 12px;font-size:.8rem;color:#f0883e;display:none;align-items:center;gap:6px}
 .ab.show{display:flex}
 .lbadge{font-size:.73rem;padding:2px 7px;border-radius:4px;background:#21262d;color:#8b949e}
-.lbadge.ok{background:#0d2818;color:#3fb950}
+.lbadge.ok{background:#0d2818;color:#3fb950}.gmaps-btn{background:linear-gradient(135deg,#1a73e8,#1557b0);color:#fff;border:none;border-radius:8px;padding:10px 14px;cursor:pointer;font-size:.85rem;font-weight:700;display:none;align-items:center;justify-content:center;gap:8px;width:100%;transition:opacity .2s;letter-spacing:.3px}.gmaps-btn.show{display:flex}.gmaps-btn:hover{opacity:.85}.gmaps-btn:active{transform:scale(.98)}
 </style>
 </head>
 <body>
@@ -116,7 +116,7 @@ header h1{font-size:1.2rem;color:#58a6ff;font-weight:700}
 <div class="gsp" id="c-spd">-- km/h</div>
 <div style="color:#8b949e;margin-top:4px;font-size:.68rem" id="c-dur">Duracion: 0:00</div>
 </div>
-<div class="mc" id="map-c" style="height:160px"></div>
+<button class="gmaps-btn" id="gmaps-btn" onclick="abrirGoogleMaps()">&#127758; Navegar en Google Maps</button><div class="mc" id="map-c" style="height:160px"></div>
 <div>
 <div style="font-size:.72rem;color:#8b949e;margin-bottom:5px;text-transform:uppercase">Recorrido de ruta</div>
 <div class="pl" id="plist"></div>
@@ -220,6 +220,7 @@ async function api(path,tok,method='GET',body=null){
   return r.json();
 }
 
+function abrirGoogleMaps(){var cur=step>0?ROUTE[step-1]:ROUTE[0];var nextP=PARS.find(function(p){return step<=p.st;})||PARS[PARS.length-1];var url="https://www.google.com/maps/dir/"+cur.lat+","+cur.lng+"/"+nextP.lat+","+nextP.lng;window.open(url,"_blank");log("c","Abriendo Google Maps → "+nextP.n,"i");}
 function updateMaps(lat,lng,spd){
   const ic=L.divIcon({html:'<div style="background:#1b4332;border:2px solid #3fb950;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px">&#128652;</div>',className:'',iconSize:[26,26],iconAnchor:[13,13]});
   [[mA,'mkA'],[mC,'mkC'],[mP,'mkP']].forEach(([m,k])=>{
@@ -314,7 +315,8 @@ async function tick(){
 async function finish(){
   clearInterval(simInt);running=false;
   document.getElementById('btn-s').disabled=false;document.getElementById('btn-x').disabled=true;
-  log('a','=== RUTA COMPLETADA ===','s');log('c','Turno finalizado - Plaza de Armas','s');log('p','Viaje completado','s');
+  document.getElementById('gmaps-btn').classList.remove('show');
+log('a','=== RUTA COMPLETADA ===','s');log('c','Turno finalizado - Plaza de Armas','s');log('p','Viaje completado','s');
   document.getElementById('c-st').textContent='Turno completado';
   document.getElementById('p-st').textContent='Viaje completado';
   document.getElementById('a-ra').textContent='0';document.getElementById('a-co').textContent='0';document.getElementById('a-pa').textContent='0';
@@ -322,7 +324,7 @@ async function finish(){
   if(ejecId&&ejecId!=='sim'){try{await api('/api/rutas/'+ejecId+'/finalizar',aT,'POST');log('a','Finalizado en backend','s');}catch(e){log('a','Finalizar: '+e,'e');}}
 }
 
-function stop(){clearInterval(simInt);running=false;document.getElementById('btn-s').disabled=false;document.getElementById('btn-x').disabled=true;log('a','Simulacion detenida','w');}
+function stop(){clearInterval(simInt);running=false;document.getElementById('btn-s').disabled=false;document.getElementById('btn-x').disabled=true;document.getElementById('gmaps-btn').classList.remove('show');log('a','Simulacion detenida','w');}
 
 async function checkBackend(){
   try{const r=await fetch(API+'/health');const d=await r.json();document.getElementById('d-be').className='dot green';document.getElementById('s-be').textContent='Backend: conectado OK (v'+d.version+')';log('a','Backend OK','s');return true;}
