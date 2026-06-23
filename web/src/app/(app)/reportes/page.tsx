@@ -6,8 +6,8 @@ import {
   LineChart, Line, CartesianGrid, Legend, PieChart, Pie,
 } from 'recharts';
 import { getReporteDiario, getReporteSemanal, descargarExcel } from '@/lib/api';
-import { cached, hasCache } from '@/lib/cache';
 import { formatFecha, puntualidadColor, cn } from '@/lib/utils';
+import { cached } from '@/lib/cache';
 
 type Tab = 'diario' | 'semanal';
 
@@ -35,12 +35,13 @@ export default function ReportesPage() {
   const [exporting,setExporting]= useState(false);
 
   const cargar = async () => {
-    const key = `reporte-${tab}-${fecha}`;
-    if (!hasCache(key)) setLoading(true);
+    setLoading(true);
     try {
-      const res = await cached(key, () =>
-        tab === 'diario' ? getReporteDiario(fecha) : getReporteSemanal(fecha)
-      );
+      const key = `reporte:${tab}:${fecha}`;
+      const fetcher = tab === 'diario'
+        ? () => getReporteDiario(fecha)
+        : () => getReporteSemanal(fecha);
+      const res = await cached(key, fetcher);
       setData(res);
     } catch (err: any) {
       toast.error('Error al cargar reporte');
@@ -82,7 +83,7 @@ export default function ReportesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white">Reportes</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Análisis de operaciones</p>
+          <p className="text-slate-500 text-sm mt-0.5">Analisis de operaciones</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
@@ -90,7 +91,7 @@ export default function ReportesPage() {
               <button key={t} onClick={() => setTab(t)}
                 className={cn('px-4 py-2 text-sm font-semibold transition-colors',
                   tab === t ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-slate-200')}>
-                {t === 'diario' ? '📅 Diario' : '📆 Semanal'}
+                {t === 'diario' ? 'Diario' : 'Semanal'}
               </button>
             ))}
           </div>
@@ -99,7 +100,7 @@ export default function ReportesPage() {
           />
           <button onClick={handleExcel} disabled={exporting}
             className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors">
-            {exporting ? '⏳' : '📥'} Excel
+            {exporting ? 'Exportando...' : 'Excel'}
           </button>
         </div>
       </div>
@@ -114,7 +115,7 @@ export default function ReportesPage() {
             <StatCard label="Rutas ejecutadas"    valor={totales?.totalEjecuciones || 0}   color="text-blue-400" />
             <StatCard label="Pasajeros recogidos"  valor={totales?.totalRecogidos   || 0}   color="text-green-400" />
             <StatCard label="Ausencias"            valor={totales?.totalAusentes    || 0}   color="text-red-400" />
-            <StatCard label="Puntualidad promedio" valor={`${totales?.puntualidadPromedio ? (totales?.puntualidadPromedio || 0).toFixed(1) : 0}%`}
+            <StatCard label="Puntualidad promedio" valor={`${(totales?.puntualidadPromedio || 0).toFixed(1)}%`}
               color={puntualidadColor(totales?.puntualidadPromedio || 0)}
             />
           </div>
@@ -122,7 +123,7 @@ export default function ReportesPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5">
               <h3 className="font-bold text-white mb-4">Pasajeros por ruta</h3>
-              <div className="h-�8�
+              <div className="h-64">
                 {barData.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-slate-600 text-sm">Sin datos</div>
                 ) : (
@@ -141,7 +142,7 @@ export default function ReportesPage() {
             </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-              <h3 className="font-bold text-white mb-4">Distribución de estados</h3>
+              <h3 className="font-bold text-white mb-4">Distribucion de estados</h3>
               <div className="h-48">
                 {pieData.every(d => d.value === 0) ? (
                   <div className="flex items-center justify-center h-full text-slate-600 text-sm">Sin datos</div>
@@ -176,17 +177,17 @@ export default function ReportesPage() {
           {data.detalle?.length > 0 && (
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-800">
-                <h3 className="font-bold text-white">Detalle por ejecución</h3>
+                <h3 className="font-bold text-white">Detalle por ejecucion</h3>
               </div>
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
                     <th className="text-left px-5 py-3">Ruta</th>
                     <th className="text-left px-5 py-3">Conductor</th>
-                    <th className="text-left px-5 py-3">Vehículo</th>
+                    <th className="text-left px-5 py-3">Vehiculo</th>
                     <th className="text-left px-5 py-3">Recogidos</th>
                     <th className="text-left px-5 py-3">Ausentes</th>
-                    <th className="text-left px-5 py-3">Duración</th>
+                    <th className="text-left px-5 py-3">Duracion</th>
                     <th className="text-left px-5 py-3">Puntualidad</th>
                   </tr>
                 </thead>
@@ -198,10 +199,10 @@ export default function ReportesPage() {
                       <td className="px-5 py-3 text-slate-400 text-sm font-mono">{e.vehiculoPlaca}</td>
                       <td className="px-5 py-3 text-green-400 text-sm font-bold">{e.recogidos}</td>
                       <td className="px-5 py-3 text-red-400 text-sm font-bold">{e.ausentes}</td>
-                      <td className="px-5 py-3 text-slate-400 text-sm">{e.duracionMin ? `${e.duracionMin} min` : '—'}</td>
+                      <td className="px-5 py-3 text-slate-400 text-sm">{e.duracionMin ? `${e.duracionMin} min` : '-'}</td>
                       <td className="px-5 py-3">
                         <span className={cn('font-bold text-sm', puntualidadColor(e.puntualidad || 0))}>
-                          {`${(e.puntualidad || 0).toFixed(0)}%`}
+                          {(e.puntualidad || 0).toFixed(0)}%
                         </span>
                       </td>
                     </tr>
@@ -224,7 +225,7 @@ export default function ReportesPage() {
 
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <h3 className="font-bold text-white mb-4">Tendencia semanal</h3>
-            <div className="h-��x">
+            <div className="h-72">
               {lineData.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-slate-600 text-sm">Sin datos</div>
               ) : (
@@ -246,7 +247,7 @@ export default function ReportesPage() {
           {data.porConductor?.length > 0 && (
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-800">
-                <h3 className="font-bold text-white">Desempeño por conductor</h3>
+                <h3 className="font-bold text-white">Desempeno por conductor</h3>
               </div>
               <table className="w-full">
                 <thead>
@@ -256,7 +257,7 @@ export default function ReportesPage() {
                     <th className="text-left px-5 py-3">Recogidos</th>
                     <th className="text-left px-5 py-3">Ausentes</th>
                     <th className="text-left px-5 py-3">Puntualidad</th>
-                    <th className="text-left px-5 py-3">Calificación</th>
+                    <th className="text-left px-5 py-3">Calificacion</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
@@ -274,12 +275,12 @@ export default function ReportesPage() {
                       <td className="px-5 py-3 text-green-400 text-sm font-bold">{c.totalRecogidos}</td>
                       <td className="px-5 py-3 text-red-400 text-sm font-bold">{c.totalAusentes}</td>
                       <td className="px-5 py-3">
-                        <span className={cn('font-bold text-sm', puntualidadColor(j.puntualidad || 0))}>
-                          {`${(c.puntualidad || 0).toFixed(1)}%`}
+                        <span className={cn('font-bold text-sm', puntualidadColor(c.puntualidad || 0))}>
+                          {(c.puntualidad || 0).toFixed(1)}%
                         </span>
                       </td>
                       <td className="px-5 py-3 text-yellow-400 text-sm font-bold">
-                        ★ {c.calificacionPromedio ? c.calificacionPromedio.toFixed(1) : '—'}
+                        * {c.calificacionPromedio ? c.calificacionPromedio.toFixed(1) : '-'}
                       </td>
                     </tr>
                   ))}
