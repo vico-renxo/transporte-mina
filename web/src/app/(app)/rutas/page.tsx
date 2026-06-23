@@ -2,13 +2,13 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { getRutas, crearRuta, actualizarRuta, getConductores, getVehiculos, iniciarRutaApi, finalizarRutaApi } from '@/lib/api';
+import { cached, bust, hasCache } from '@/lib/cache';
 import { badgeEstado, formatHora, cn } from '@/lib/utils';
 
 interface Paradero { nombre: string; lat: number; lng: number; orden: number; }
 interface Ruta {
   id: string; nombre: string; origen: string; destino: string; horaInicio: string;
   dias: string[]; estado: 'ACTIVA' | 'INACTIVA';
-  paraderos?: Paradero[];
   _count?: { pasajeros: number; paraderos: number };
   ejecucionActiva?: { id: string; estado: string } | null;
 }
@@ -16,11 +16,13 @@ interface NominatimResult { place_id: number; display_name: string; lat: string;
 
 const DIAS = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM'];
 
-function BuscadorDireccion({ label, value, onChange }: { label: string; value: string; onChange: (val: string) => void }) {
-  const [query,      setQuery]      = useState(value);
-  const [resultados, setResultados] = useState<NominatimResult[]>([]);
-  const [buscando,   setBuscando]   = useState(false);
-  const [abierto,    setAbierto]    = useState(false);
+function BuscadorDireccion({
+  label, value, onChange
+}: { label: string; value: string; onChange: (val: string) => void }) {
+  const [query,       setQuery]       = useState(value);
+  const [resultados,  setResultados]  = useState<NominatimResult[]>([]);
+  const [buscando,    setBuscando]    = useState(false);
+  const [abierto,     setAbierto]     = useState(false);
   const timerRef = useRef<any>(null);
   const wrapRef  = useRef<HTMLDivElement>(null);
 
@@ -37,40 +39,54 @@ function BuscadorDireccion({ label, value, onChange }: { label: string; value: s
     setBuscando(true);
     fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=pe&limit=5&addressdetails=0`)
       .then(r => r.json())
-      .then((data: NominatimResult[]) => { setResultados(data); setAbierto(data.length > 0); })
+      .then((data: NominatimResult[]) => {
+        setResultados(data);
+        setAbierto(data.length > 0);
+      })
       .catch(() => {})
       .finally(() => setBuscando(false));
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    setQuery(val); onChange(val);
+    setQuery(val);
+    onChange(val);
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => buscar(val), 400);
   };
 
   const seleccionar = (r: NominatimResult) => {
     const nombre = r.display_name.split(',').slice(0, 2).join(',').trim();
-    setQuery(nombre); onChange(nombre);
-    setResultados([]); setAbierto(false);
+    setQuery(nombre);
+    onChange(nombre);
+    setResultados([]);
+    setAbierto(false);
   };
 
   return (
     <div ref={wrapRef} className="relative">
       <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1">{label}</label>
       <div className="relative">
-        <input value={query} onChange={handleChange} onFocus={() => resultados.length > 0 && setAbierto(true)}
+        <input
+          value={query}
+          onChange={handleChange}
+          onFocus={() => resultados.length > 0 && setAbierto(true)}
           placeholder="Escribe una dirección..."
           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 pr-8 text-slate-100 text-sm focus:outline-none focus:border-green-500"
         />
-        {buscando && <span className="absolute right-2.5 top-3 text-slate-500 text-xs animate-spin">⟳</span>}
+        {buscando && (
+          <span className="absolute right-2.5 top-3 text-slate-500 text-xs animate-spin">⟳</span>
+        )}
       </div>
       {abierto && resultados.length > 0 && (
         <ul className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden max-h-52 overflow-y-auto">
           {resultados.map(r => (
             <li key={r.place_id}>
-              <button type="button" onClick={() => seleccionar(r)}
-                className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0">
+              <button
+                type="button"
+                onClick={() => seleccionar(r)}
+                className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0"
+              >
                 <span className="text-slate-400 mr-1.5">📍</span>
                 {r.display_name.split(',').slice(0, 3).join(',')}
               </button>
@@ -87,7 +103,8 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+      <div className="relative bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6"
+        onClick={e => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -100,15 +117,16 @@ function FormRuta({ ruta, onSave, onClose }: { ruta?: Ruta; onSave: () => void; 
   const [destino,    setDestino]    = useState(ruta?.destino    || '');
   const [horaInicio, setHoraInicio] = useState(ruta?.horaInicio || '05:30');
   const [dias,       setDias]       = useState<string[]>(ruta?.dias || ['LUN', 'MAR', 'MIE', 'JUE', 'VIE']);
-  const [paraderos,  setParaderos]  = useState<Paradero[]>(
-    ruta?.paraderos?.length
-      ? ruta.paraderos.map(p => ({ nombre: p.nombre, lat: p.lat ?? 0, lng: p.lng ?? 0, orden: p.orden }))
-      : [{ nombre: '', lat: 0, lng: 0, orden: 1 }]
-  );
+  const [paraderos,  setParaderos]  = useState<Paradero[]>([
+    { nombre: '', lat: 0, lng: 0, orden: 1 }
+  ]);
   const [saving, setSaving] = useState(false);
 
   const toggleDia = (d: string) =>
     setDias(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+
+  const addParadero = () =>
+    setParaderos(prev => [...prev, { nombre: '', lat: 0, lng: 0, orden: prev.length + 1 }]);
 
   const handleSave = async () => {
     if (!nombre || !origen || !destino) { toast.error('Completa los campos obligatorios'); return; }
@@ -127,6 +145,7 @@ function FormRuta({ ruta, onSave, onClose }: { ruta?: Ruta; onSave: () => void; 
   return (
     <div className="space-y-5">
       <h2 className="text-lg font-black text-white">{ruta ? 'Editar ruta' : 'Nueva ruta'}</h2>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Nombre de ruta</label>
@@ -141,6 +160,7 @@ function FormRuta({ ruta, onSave, onClose }: { ruta?: Ruta; onSave: () => void; 
             className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-green-500" />
         </div>
       </div>
+
       <div>
         <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-2">Días de servicio</label>
         <div className="flex gap-2 flex-wrap">
@@ -152,18 +172,20 @@ function FormRuta({ ruta, onSave, onClose }: { ruta?: Ruta; onSave: () => void; 
           ))}
         </div>
       </div>
+
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Paraderos</label>
-          <button onClick={() => setParaderos(prev => [...prev, { nombre: '', lat: 0, lng: 0, orden: prev.length + 1 }])}
-            className="text-xs text-green-400 hover:text-green-300">+ Agregar</button>
+          <button onClick={addParadero} className="text-xs text-green-400 hover:text-green-300">+ Agregar</button>
         </div>
         <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
           {paraderos.map((p, i) => (
             <div key={i} className="flex items-center gap-2">
               <span className="text-slate-600 text-xs w-5 text-right">{i + 1}.</span>
-              <input placeholder="Nombre del paradero" value={p.nombre}
-                onChange={e => { const n = [...paraderos]; n[i] = { ...n[i], nombre: e.target.value }; setParaderos(n); }}
+              <input placeholder="Nombre del paradero"
+                value={p.nombre} onChange={e => {
+                  const n = [...paraderos]; n[i] = { ...n[i], nombre: e.target.value }; setParaderos(n);
+                }}
                 className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-xs focus:outline-none focus:border-green-500"
               />
               {i > 0 && <button onClick={() => setParaderos(prev => prev.filter((_, j) => j !== i))}
@@ -172,6 +194,7 @@ function FormRuta({ ruta, onSave, onClose }: { ruta?: Ruta; onSave: () => void; 
           ))}
         </div>
       </div>
+
       <div className="flex gap-3 pt-2">
         <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-slate-800 text-slate-300 text-sm font-semibold hover:bg-slate-700 transition-colors">Cancelar</button>
         <button onClick={handleSave} disabled={saving}
@@ -191,7 +214,10 @@ function ModalIniciar({ ruta, onClose, onIniciar }: { ruta: Ruta; onClose: () =>
   const [loading,     setLoading]     = useState(false);
 
   useEffect(() => {
-    Promise.all([getConductores(), getVehiculos()]).then(([c, v]) => {
+    Promise.all([
+      cached('conductores', getConductores),
+      cached('vehiculos', getVehiculos),
+    ]).then(([c, v]) => {
       setConductores(c.conductores || c);
       setVehiculos(v.vehiculos || v);
     });
@@ -213,6 +239,7 @@ function ModalIniciar({ ruta, onClose, onIniciar }: { ruta: Ruta; onClose: () =>
     <div className="space-y-5">
       <h2 className="text-lg font-black text-white">Iniciar ruta</h2>
       <p className="text-slate-400 text-sm">{ruta.nombre} · {ruta.horaInicio}</p>
+
       <div>
         <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">Conductor</label>
         <select value={conductorId} onChange={e => setConductorId(e.target.value)}
@@ -221,6 +248,7 @@ function ModalIniciar({ ruta, onClose, onIniciar }: { ruta: Ruta; onClose: () =>
           {conductores.map((c: any) => <option key={c.id} value={c.id}>{c.usuario?.nombre || c.nombre} — Lic. {c.licencia}</option>)}
         </select>
       </div>
+
       <div>
         <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">Vehículo</label>
         <select value={vehiculoId} onChange={e => setVehiculoId(e.target.value)}
@@ -229,6 +257,7 @@ function ModalIniciar({ ruta, onClose, onIniciar }: { ruta: Ruta; onClose: () =>
           {vehiculos.map((v: any) => <option key={v.id} value={v.id}>{v.placa} — {v.marca} {v.modelo} ({v.capacidad} pas.)</option>)}
         </select>
       </div>
+
       <div className="flex gap-3 pt-2">
         <button onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-slate-800 text-slate-300 text-sm font-semibold hover:bg-slate-700 transition-colors">Cancelar</button>
         <button onClick={handleIniciar} disabled={loading}
@@ -242,17 +271,20 @@ function ModalIniciar({ ruta, onClose, onIniciar }: { ruta: Ruta; onClose: () =>
 
 export default function RutasPage() {
   const [rutas,      setRutas]      = useState<Ruta[]>([]);
-  const [loading,    setLoading]    = useState(true);
+  const [loading,    setLoading]    = useState(!hasCache('rutas'));
   const [modalForm,  setModalForm]  = useState(false);
   const [modalIni,   setModalIni]   = useState(false);
   const [selRuta,    setSelRuta]    = useState<Ruta | null>(null);
   const [filtro,     setFiltro]     = useState('');
 
   const cargar = async () => {
-    try { const data = await getRutas(); setRutas(data.rutas || data); }
+    try { const data = await cached('rutas', getRutas); setRutas(data.rutas || data); }
     catch { toast.error('Error al cargar rutas'); }
     finally { setLoading(false); }
   };
+
+  const recargar = () => { bust('rutas'); cargar(); };
+
   useEffect(() => { cargar(); }, []);
 
   const filtradas = rutas.filter(r =>
@@ -267,6 +299,7 @@ export default function RutasPage() {
     try {
       await finalizarRutaApi(ruta.ejecucionActiva.id);
       toast.success('Ruta finalizada');
+      bust('rutas');
       cargar();
     } catch (err: any) { toast.error(err.response?.data?.error || 'Error'); }
   };
@@ -278,15 +311,20 @@ export default function RutasPage() {
           <h1 className="text-2xl font-black text-white">Rutas</h1>
           <p className="text-slate-500 text-sm mt-0.5">{rutas.length} rutas configuradas</p>
         </div>
-        <button onClick={() => { setSelRuta(null); setModalForm(true); }}
-          className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2">
-          + Nueva ruta
-        </button>
+        <div className="flex gap-2">
+          <button onClick={recargar} title="Actualizar" className="bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm px-3 py-2.5 rounded-lg transition-colors">↻</button>
+          <button onClick={() => { setSelRuta(null); setModalForm(true); }}
+            className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2">
+            + Nueva ruta
+          </button>
+        </div>
       </div>
+
       <input value={filtro} onChange={e => setFiltro(e.target.value)}
         placeholder="🔍 Buscar ruta, origen o destino..."
         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-slate-100 text-sm focus:outline-none focus:border-green-500 mb-5"
       />
+
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <table className="w-full">
           <thead>
@@ -348,11 +386,12 @@ export default function RutasPage() {
           </tbody>
         </table>
       </div>
+
       <Modal open={modalForm} onClose={() => setModalForm(false)}>
-        <FormRuta ruta={selRuta ?? undefined} onSave={() => { setModalForm(false); cargar(); }} onClose={() => setModalForm(false)} />
+        <FormRuta ruta={selRuta ?? undefined} onSave={() => { bust('rutas'); setModalForm(false); cargar(); }} onClose={() => setModalForm(false)} />
       </Modal>
       <Modal open={modalIni && !!selRuta} onClose={() => setModalIni(false)}>
-        {selRuta && <ModalIniciar ruta={selRuta} onClose={() => setModalIni(false)} onIniciar={() => { setModalIni(false); cargar(); }} />}
+        {selRuta && <ModalIniciar ruta={selRuta} onClose={() => setModalIni(false)} onIniciar={() => { bust('rutas'); setModalIni(false); cargar(); }} />}
       </Modal>
     </div>
   );
