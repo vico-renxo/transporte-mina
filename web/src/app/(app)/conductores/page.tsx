@@ -2,10 +2,14 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { getConductores, crearConductor, actualizarConductor } from '@/lib/api';
+import { cached, bust, hasCache } from '@/lib/cache';
 import { badgeEstado, cn } from '@/lib/utils';
 
 interface Conductor {
-  id: string; licencia: string; telefono: string; estado: 'ACTIVO' | 'INACTIVO';
+  id: string;
+  licencia: string;
+  telefono: string;
+  estado: 'ACTIVO' | 'INACTIVO';
   usuario: { nombre: string; email: string };
   _count?: { ejecuciones: number };
 }
@@ -88,16 +92,19 @@ function FormConductor({ cond, onSave, onClose }: { cond?: Conductor; onSave: ()
 
 export default function ConductoresPage() {
   const [conductores, setConductores] = useState<Conductor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [modal,   setModal]   = useState(false);
-  const [selCond, setSelCond] = useState<Conductor | null>(null);
-  const [filtro,  setFiltro]  = useState('');
+  const [loading,  setLoading]  = useState(!hasCache('conductores'));
+  const [modal,    setModal]    = useState(false);
+  const [selCond,  setSelCond]  = useState<Conductor | null>(null);
+  const [filtro,   setFiltro]   = useState('');
 
   const cargar = async () => {
-    try { const d = await getConductores(); setConductores(d.conductores || d); }
+    try { const d = await cached('conductores', getConductores); setConductores(d.conductores || d); }
     catch { toast.error('Error al cargar conductores'); }
     finally { setLoading(false); }
   };
+
+  const recargar = () => { bust('conductores'); cargar(); };
+
   useEffect(() => { cargar(); }, []);
 
   const filtrados = conductores.filter(c =>
@@ -112,15 +119,20 @@ export default function ConductoresPage() {
           <h1 className="text-2xl font-black text-white">Conductores</h1>
           <p className="text-slate-500 text-sm mt-0.5">{conductores.length} registrados</p>
         </div>
-        <button onClick={() => { setSelCond(null); setModal(true); }}
-          className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors">
-          + Nuevo conductor
-        </button>
+        <div className="flex gap-2">
+          <button onClick={recargar} title="Actualizar" className="bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm px-3 py-2.5 rounded-lg transition-colors">↻</button>
+          <button onClick={() => { setSelCond(null); setModal(true); }}
+            className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors">
+            + Nuevo conductor
+          </button>
+        </div>
       </div>
+
       <input value={filtro} onChange={e => setFiltro(e.target.value)}
         placeholder="🔍 Buscar por nombre o licencia..."
         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-slate-100 text-sm focus:outline-none focus:border-green-500 mb-5"
       />
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {loading ? (
           <p className="text-slate-500 col-span-3 text-center py-12">Cargando...</p>
@@ -149,8 +161,9 @@ export default function ConductoresPage() {
           );
         })}
       </div>
+
       <Modal open={modal} onClose={() => setModal(false)}>
-        <FormConductor cond={selCond ?? undefined} onSave={() => { setModal(false); cargar(); }} onClose={() => setModal(false)} />
+        <FormConductor cond={selCond ?? undefined} onSave={() => { bust('conductores'); setModal(false); cargar(); }} onClose={() => setModal(false)} />
       </Modal>
     </div>
   );
