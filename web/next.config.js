@@ -2,7 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   output: 'export',
-  basePath: '/transporte',
   trailingSlash: true,
   images: { unoptimized: true },
   env: {
