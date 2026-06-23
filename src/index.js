@@ -2,10 +2,10 @@ require('dotenv').config();
 
 // Prevenir crashes por errores no capturados
 process.on('uncaughtException', (err) => {
-  console.error('⚠️  uncaughtException (no fatal):', err.message);
+  console.error('â ï¸  uncaughtException (no fatal):', err.message);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('⚠️  unhandledRejection (no fatal):', reason?.message || reason);
+  console.error('â ï¸  unhandledRejection (no fatal):', reason?.message || reason);
 });
 
 const express = require('express');
@@ -17,7 +17,7 @@ const helmet = require('helmet');
 const { initSocket } = require('./config/socket');
 const errorHandler = require('./shared/middleware/errorHandler');
 
-// Módulos
+// MÃ³dulos
 const authRoutes = require('./modules/auth/auth.routes');
 const rutasRoutes = require('./modules/rutas/rutas.routes');
 const pasajerosRoutes = require('./modules/pasajeros/pasajeros.routes');
@@ -32,14 +32,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || '*',
+    origin: (process.env.FRONTEND_URL || '*').split(','),
     methods: ['GET', 'POST']
   }
 });
 
 // Middlewares globales
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+app.use(cors({ origin: (process.env.FRONTEND_URL || '*').split(',') }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -70,7 +70,7 @@ app.use(errorHandler);
 // WebSocket
 initSocket(io);
 
-// Monitor GPS (verifica señal cada 60 seg)
+// Monitor GPS (verifica seÃ±al cada 60 seg)
 const { iniciarMonitor } = require('./modules/gps/gps.monitor');
 iniciarMonitor(io);
 
@@ -78,8 +78,8 @@ const PORT = process.env.PORT || 3001;
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
-    console.log(`📡 WebSocket activo`);
+    console.log(`â Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`ð¡ WebSocket activo`);
   });
 }
 
