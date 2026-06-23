@@ -1,0 +1,2 @@
+/transporte/_next/* /transporte/_next/:splat 200
+/transporte/* /:splat 200
