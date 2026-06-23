@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { getVehiculos, crearVehiculo, actualizarVehiculo } from '@/lib/api';
+import { cached, bust, hasCache } from '@/lib/cache';
 import { badgeEstado, cn } from '@/lib/utils';
 
 interface Vehiculo {
@@ -85,16 +86,19 @@ function FormVehiculo({ v, onSave, onClose }: { v?: Vehiculo; onSave: () => void
 
 export default function VehiculosPage() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [loading, setLoading]     = useState(!hasCache('vehiculos'));
   const [modal,   setModal]       = useState(false);
   const [selV,    setSelV]        = useState<Vehiculo | null>(null);
   const [filtro,  setFiltro]      = useState('');
 
   const cargar = async () => {
-    try { const d = await getVehiculos(); setVehiculos(d.vehiculos || d); }
+    try { const d = await cached('vehiculos', getVehiculos); setVehiculos(d.vehiculos || d); }
     catch { toast.error('Error al cargar vehículos'); }
     finally { setLoading(false); }
   };
+
+  const recargar = () => { bust('vehiculos'); cargar(); };
+
   useEffect(() => { cargar(); }, []);
 
   const filtrados = vehiculos.filter(v =>
@@ -103,7 +107,9 @@ export default function VehiculosPage() {
     v.modelo.toLowerCase().includes(filtro.toLowerCase())
   );
 
-  const ESTADO_ICON: Record<string, string> = { ACTIVO: '🟢', INACTIVO: '🔴', MANTENIMIENTO: '🟡' };
+  const ESTADO_ICON: Record<string, string> = {
+    ACTIVO: '🟢', INACTIVO: '🔴', MANTENIMIENTO: '🟡'
+  };
 
   return (
     <div className="p-6">
@@ -112,18 +118,23 @@ export default function VehiculosPage() {
           <h1 className="text-2xl font-black text-white">Vehículos</h1>
           <p className="text-slate-500 text-sm mt-0.5">{vehiculos.length} registrados</p>
         </div>
-        <button onClick={() => { setSelV(null); setModal(true); }}
-          className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors">
-          + Nuevo vehículo
-        </button>
+        <div className="flex gap-2">
+          <button onClick={recargar} title="Actualizar" className="bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm px-3 py-2.5 rounded-lg transition-colors">↻</button>
+          <button onClick={() => { setSelV(null); setModal(true); }}
+            className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors">
+            + Nuevo vehículo
+          </button>
+        </div>
       </div>
+
       <input value={filtro} onChange={e => setFiltro(e.target.value)}
         placeholder="🔍 Buscar por placa, marca o modelo..."
         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-slate-100 text-sm focus:outline-none focus:border-green-500 mb-5"
       />
+
       <div className="grid grid-cols-3 gap-4 mb-6">
         {['ACTIVO', 'MANTENIMIENTO', 'INACTIVO'].map(st => {
-          const n = vehiculos.filter(v => v.estado === st).length;
+          const n   = vehiculos.filter(v => v.estado === st).length;
           const cfg = badgeEstado(st);
           return (
             <div key={st} className={cn('rounded-xl p-4 border', cfg.bg, 'border-transparent')}>
@@ -133,6 +144,7 @@ export default function VehiculosPage() {
           );
         })}
       </div>
+
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <table className="w-full">
           <thead>
@@ -155,7 +167,9 @@ export default function VehiculosPage() {
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{ESTADO_ICON[v.estado] || '🚌'}</span>
-                      <p className="text-white font-semibold text-sm">{v.marca} {v.modelo}</p>
+                      <div>
+                        <p className="text-white font-semibold text-sm">{v.marca} {v.modelo}</p>
+                      </div>
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-white font-mono font-bold">{v.placa}</td>
@@ -176,8 +190,9 @@ export default function VehiculosPage() {
           </tbody>
         </table>
       </div>
+
       <Modal open={modal} onClose={() => setModal(false)}>
-        <FormVehiculo v={selV ?? undefined} onSave={() => { setModal(false); cargar(); }} onClose={() => setModal(false)} />
+        <FormVehiculo v={selV ?? undefined} onSave={() => { bust('vehiculos'); setModal(false); cargar(); }} onClose={() => setModal(false)} />
       </Modal>
     </div>
   );
