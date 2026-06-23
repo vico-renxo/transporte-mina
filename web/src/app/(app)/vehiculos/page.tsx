@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { getVehiculos, crearVehiculo, actualizarVehiculo } from '@/lib/api';
-import { cached, bust, hasCache } from '@/lib/cache';
 import { badgeEstado, cn } from '@/lib/utils';
+import { cached, bust, hasCache } from '@/lib/cache';
 
 interface Vehiculo {
   id: string; placa: string; marca: string; modelo: string; anio: number;
@@ -38,7 +38,7 @@ function FormVehiculo({ v, onSave, onClose }: { v?: Vehiculo; onSave: () => void
       const payload = { placa: placa.toUpperCase(), marca, modelo, anio, capacidad, estado };
       if (v) await actualizarVehiculo(v.id, payload);
       else   await crearVehiculo(payload);
-      toast.success(v ? 'Vehículo actualizado' : 'Vehículo registrado');
+      toast.success(v ? 'Vehiculo actualizado' : 'Vehiculo registrado');
       onSave();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Error al guardar');
@@ -47,13 +47,13 @@ function FormVehiculo({ v, onSave, onClose }: { v?: Vehiculo; onSave: () => void
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-black text-white">{v ? 'Editar vehículo' : 'Nuevo vehículo'}</h2>
+      <h2 className="text-lg font-black text-white">{v ? 'Editar vehiculo' : 'Nuevo vehiculo'}</h2>
       <div className="grid grid-cols-2 gap-4">
         {[
           ['Placa *', placa, setPlaca, 'text', 'uppercase'],
           ['Marca *', marca, setMarca, 'text', ''],
           ['Modelo *', modelo, setModelo, 'text', ''],
-          ['Año', anio, setAnio, 'number', ''],
+          ['Anio', anio, setAnio, 'number', ''],
           ['Capacidad (pasajeros)', capacidad, setCapacidad, 'number', ''],
         ].map(([label, val, setter, type, cls]: any) => (
           <div key={label}>
@@ -92,13 +92,12 @@ export default function VehiculosPage() {
   const [filtro,  setFiltro]      = useState('');
 
   const cargar = async () => {
-    try { const d = await cached('vehiculos', getVehiculos); setVehiculos(d.vehiculos || d); }
-    catch { toast.error('Error al cargar vehículos'); }
+    try {
+      const d = await cached('vehiculos', () => getVehiculos());
+      setVehiculos(d.vehiculos || d);
+    } catch { toast.error('Error al cargar vehiculos'); }
     finally { setLoading(false); }
   };
-
-  const recargar = () => { bust('vehiculos'); cargar(); };
-
   useEffect(() => { cargar(); }, []);
 
   const filtrados = vehiculos.filter(v =>
@@ -108,27 +107,24 @@ export default function VehiculosPage() {
   );
 
   const ESTADO_ICON: Record<string, string> = {
-    ACTIVO: '🟢', INACTIVO: '🔴', MANTENIMIENTO: '🟡'
+    ACTIVO: '[V]', INACTIVO: '[X]', MANTENIMIENTO: '[M]'
   };
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-black text-white">Vehículos</h1>
+          <h1 className="text-2xl font-black text-white">Vehiculos</h1>
           <p className="text-slate-500 text-sm mt-0.5">{vehiculos.length} registrados</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={recargar} title="Actualizar" className="bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm px-3 py-2.5 rounded-lg transition-colors">↻</button>
-          <button onClick={() => { setSelV(null); setModal(true); }}
-            className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors">
-            + Nuevo vehículo
-          </button>
-        </div>
+        <button onClick={() => { setSelV(null); setModal(true); }}
+          className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors">
+          + Nuevo vehiculo
+        </button>
       </div>
 
       <input value={filtro} onChange={e => setFiltro(e.target.value)}
-        placeholder="🔍 Buscar por placa, marca o modelo..."
+        placeholder="Buscar por placa, marca o modelo..."
         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-slate-100 text-sm focus:outline-none focus:border-green-500 mb-5"
       />
 
@@ -149,9 +145,9 @@ export default function VehiculosPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
-              <th className="text-left px-5 py-3">Vehículo</th>
+              <th className="text-left px-5 py-3">Vehiculo</th>
               <th className="text-left px-5 py-3">Placa</th>
-              <th className="text-left px-5 py-3">Año</th>
+              <th className="text-left px-5 py-3">Anio</th>
               <th className="text-left px-5 py-3">Capacidad</th>
               <th className="text-left px-5 py-3">Estado</th>
               <th className="text-right px-5 py-3">Acciones</th>
@@ -166,7 +162,7 @@ export default function VehiculosPage() {
                 <tr key={v.id} className="hover:bg-slate-800/50">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">{ESTADO_ICON[v.estado] || '🚌'}</span>
+                      <span className="text-xl font-mono text-slate-400">{ESTADO_ICON[v.estado] || '[B]'}</span>
                       <div>
                         <p className="text-white font-semibold text-sm">{v.marca} {v.modelo}</p>
                       </div>
