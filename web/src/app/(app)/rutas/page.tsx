@@ -2,8 +2,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { getRutas, crearRuta, actualizarRuta, getConductores, getVehiculos, iniciarRutaApi, finalizarRutaApi } from '@/lib/api';
-import { cached, bust, hasCache } from '@/lib/cache';
 import { badgeEstado, formatHora, cn } from '@/lib/utils';
+import { cached, bust, hasCache } from '@/lib/cache';
 
 interface Paradero { nombre: string; lat: number; lng: number; orden: number; }
 interface Ruta {
@@ -16,6 +16,7 @@ interface NominatimResult { place_id: number; display_name: string; lat: string;
 
 const DIAS = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM'];
 
+// Buscador de dirección con Nominatim (OpenStreetMap, gratuito, sin API key)
 function BuscadorDireccion({
   label, value, onChange
 }: { label: string; value: string; onChange: (val: string) => void }) {
@@ -26,6 +27,7 @@ function BuscadorDireccion({
   const timerRef = useRef<any>(null);
   const wrapRef  = useRef<HTMLDivElement>(null);
 
+  // Cerrar al hacer click fuera
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setAbierto(false);
@@ -37,6 +39,7 @@ function BuscadorDireccion({
   const buscar = useCallback((q: string) => {
     if (q.length < 3) { setResultados([]); setAbierto(false); return; }
     setBuscando(true);
+    // Nominatim: busca en Perú primero (countrycodes=pe)
     fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=pe&limit=5&addressdetails=0`)
       .then(r => r.json())
       .then((data: NominatimResult[]) => {
@@ -56,6 +59,7 @@ function BuscadorDireccion({
   };
 
   const seleccionar = (r: NominatimResult) => {
+    // Usar nombre corto: primera parte antes de la coma
     const nombre = r.display_name.split(',').slice(0, 2).join(',').trim();
     setQuery(nombre);
     onChange(nombre);
@@ -112,12 +116,12 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 }
 
 function FormRuta({ ruta, onSave, onClose }: { ruta?: Ruta; onSave: () => void; onClose: () => void }) {
-  const [nombre,     setNombre]     = useState(ruta?.nombre     || '');
-  const [origen,     setOrigen]     = useState(ruta?.origen     || '');
-  const [destino,    setDestino]    = useState(ruta?.destino    || '');
-  const [horaInicio, setHoraInicio] = useState(ruta?.horaInicio || '05:30');
-  const [dias,       setDias]       = useState<string[]>(ruta?.dias || ['LUN', 'MAR', 'MIE', 'JUE', 'VIE']);
-  const [paraderos,  setParaderos]  = useState<Paradero[]>([
+  const [nombre,     setNombre]      = useState(ruta?.nombre     || '');
+  const [origen,     setOrigen]      = useState(ruta?.origen     || '');
+  const [destino,    setDestino]     = useState(ruta?.destino    || '');
+  const [horaInicio, setHoraInicio]  = useState(ruta?.horaInicio || '05:30');
+  const [dias,       setDias]        = useState<string[]>(ruta?.dias || ['LUN', 'MAR', 'MIE', 'JUE', 'VIE']);
+  const [paraderos,  setParaderos]   = useState<Paradero[]>([
     { nombre: '', lat: 0, lng: 0, orden: 1 }
   ]);
   const [saving, setSaving] = useState(false);
@@ -161,6 +165,7 @@ function FormRuta({ ruta, onSave, onClose }: { ruta?: Ruta; onSave: () => void; 
         </div>
       </div>
 
+      {/* Días */}
       <div>
         <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-2">Días de servicio</label>
         <div className="flex gap-2 flex-wrap">
@@ -173,6 +178,7 @@ function FormRuta({ ruta, onSave, onClose }: { ruta?: Ruta; onSave: () => void; 
         </div>
       </div>
 
+      {/* Paraderos */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Paraderos</label>
@@ -214,10 +220,7 @@ function ModalIniciar({ ruta, onClose, onIniciar }: { ruta: Ruta; onClose: () =>
   const [loading,     setLoading]     = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      cached('conductores', getConductores),
-      cached('vehiculos', getVehiculos),
-    ]).then(([c, v]) => {
+    Promise.all([getConductores(), getVehiculos()]).then(([c, v]) => {
       setConductores(c.conductores || c);
       setVehiculos(v.vehiculos || v);
     });
@@ -278,12 +281,13 @@ export default function RutasPage() {
   const [filtro,     setFiltro]     = useState('');
 
   const cargar = async () => {
-    try { const data = await cached('rutas', getRutas); setRutas(data.rutas || data); }
+    try {
+      const data = await cached('rutas', () => getRutas());
+      setRutas(data.rutas || data);
+    }
     catch { toast.error('Error al cargar rutas'); }
     finally { setLoading(false); }
   };
-
-  const recargar = () => { bust('rutas'); cargar(); };
 
   useEffect(() => { cargar(); }, []);
 
@@ -299,32 +303,31 @@ export default function RutasPage() {
     try {
       await finalizarRutaApi(ruta.ejecucionActiva.id);
       toast.success('Ruta finalizada');
-      bust('rutas');
       cargar();
     } catch (err: any) { toast.error(err.response?.data?.error || 'Error'); }
   };
 
   return (
     <div className="p-6">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-black text-white">Rutas</h1>
           <p className="text-slate-500 text-sm mt-0.5">{rutas.length} rutas configuradas</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={recargar} title="Actualizar" className="bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm px-3 py-2.5 rounded-lg transition-colors">↻</button>
-          <button onClick={() => { setSelRuta(null); setModalForm(true); }}
-            className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2">
-            + Nueva ruta
-          </button>
-        </div>
+        <button onClick={() => { setSelRuta(null); setModalForm(true); }}
+          className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2">
+          + Nueva ruta
+        </button>
       </div>
 
+      {/* Filtro */}
       <input value={filtro} onChange={e => setFiltro(e.target.value)}
         placeholder="🔍 Buscar ruta, origen o destino..."
         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-slate-100 text-sm focus:outline-none focus:border-green-500 mb-5"
       />
 
+      {/* Tabla */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <table className="w-full">
           <thead>
