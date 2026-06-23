@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { getPasajeros, getPendientes, aprobarPasajero } from '@/lib/api';
+import { cached, bust, hasCache } from '@/lib/cache';
 import { badgeEstado, formatFecha, cn } from '@/lib/utils';
 
 interface Pasajero {
@@ -9,29 +10,42 @@ interface Pasajero {
   usuario: { nombre: string; email: string };
   paradero: { nombre: string };
   ruta: { nombre: string };
-  aprobado: boolean; activo: boolean; creadoEn: string; estadoHoy?: string;
+  aprobado: boolean;
+  activo: boolean;
+  fechaRegistro: string;
+  estadoHoy?: string;
 }
 
 export default function PasajerosPage() {
   const [pasajeros,  setPasajeros]  = useState<Pasajero[]>([]);
   const [pendientes, setPendientes] = useState<Pasajero[]>([]);
-  const [loading,    setLoading]    = useState(true);
+  const [loading,    setLoading]    = useState(!hasCache('pasajeros'));
   const [tab,        setTab]        = useState<'todos' | 'pendientes'>('todos');
   const [filtro,     setFiltro]     = useState('');
 
   const cargar = async () => {
     try {
-      const [pas, pen] = await Promise.all([getPasajeros(), getPendientes()]);
+      const [pas, pen] = await Promise.all([
+        cached('pasajeros', getPasajeros),
+        cached('pendientes', getPendientes),
+      ]);
       setPasajeros(pas.pasajeros || pas);
       setPendientes(pen.pendientes || pen);
     } catch { toast.error('Error al cargar'); }
     finally { setLoading(false); }
   };
+
+  const recargar = () => { bust('pasajeros', 'pendientes'); cargar(); };
+
   useEffect(() => { cargar(); }, []);
 
   const handleAprobar = async (id: string, nombre: string) => {
-    try { await aprobarPasajero(id); toast.success(`${nombre} aprobado`); cargar(); }
-    catch (err: any) { toast.error(err.response?.data?.error || 'Error'); }
+    try {
+      await aprobarPasajero(id);
+      toast.success(`${nombre} aprobado`);
+      bust('pasajeros', 'pendientes');
+      cargar();
+    } catch (err: any) { toast.error(err.response?.data?.error || 'Error'); }
   };
 
   const lista = tab === 'pendientes' ? pendientes : pasajeros;
@@ -46,9 +60,11 @@ export default function PasajerosPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-black text-white">Pasajeros</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{pasajeros.length} registrados · {pendientes.length} pendientes</p>
+          <p className="text-slate-500 text-sm mt-0.5">{pasajeros.length} registrados · {pendientes.length} pendientes de aprobación</p>
         </div>
+        <button onClick={recargar} title="Actualizar" className="bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm px-3 py-2.5 rounded-lg transition-colors">↻</button>
       </div>
+
       <div className="flex gap-2 mb-5">
         {(['todos', 'pendientes'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
@@ -61,10 +77,12 @@ export default function PasajerosPage() {
           </button>
         ))}
       </div>
+
       <input value={filtro} onChange={e => setFiltro(e.target.value)}
         placeholder="🔍 Buscar por nombre, ruta o paradero..."
         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-slate-100 text-sm focus:outline-none focus:border-green-500 mb-5"
       />
+
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <table className="w-full">
           <thead>
@@ -106,7 +124,7 @@ export default function PasajerosPage() {
                       </span>
                     ) : <span className="text-slate-600 text-xs">—</span>}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-400 text-xs">{formatFecha(p.creadoEn)}</td>
+                  <td className="px-5 py-3.5 text-slate-400 text-xs">{formatFecha(p.fechaRegistro)}</td>
                   <td className="px-5 py-3.5 text-right">
                     {!p.aprobado ? (
                       <button onClick={() => handleAprobar(p.id, p.usuario?.nombre)}
