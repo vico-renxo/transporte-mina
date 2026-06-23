@@ -20,7 +20,7 @@ export default function PasajerosPage() {
   const [pasajeros,  setPasajeros]  = useState<Pasajero[]>([]);
   const [pendientes, setPendientes] = useState<Pasajero[]>([]);
   const [loading,    setLoading]    = useState(!hasCache('pasajeros'));
-  const [tab,        setTab]        = useState<'todos' | 'pendientes'>('todos');
+  const [tab,        setTab]        = useState<'todos' | 'pendientes'>('todos')«{
   const [filtro,     setFiltro]     = useState('');
 
   const cargar = async () => {
@@ -62,7 +62,7 @@ export default function PasajerosPage() {
       </div>
 
       <div className="flex gap-2 mb-5">
-        {('todos', 'pendientes'] as const).map(t => (
+        {(['todos', 'pendientes'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={cn('px-4 py-2 rounded-lg text-sm font-semibold transition-colors',
               tab === t ? 'bg-green-600 text-white' : 'bg-slate-900 border border-slate-700 text-slate-400 hover:bg-slate-800')}>
@@ -87,7 +87,7 @@ export default function PasajerosPage() {
               <th className="text-left px-5 py-3">Ruta</th>
               <th className="text-left px-5 py-3">Paradero</th>
               <th className="text-left px-5 py-3">Estado hoy</th>
-              <th className="text-left px-5 py-3">Registro</th>
+              <th className="text-left px-5 py-3">Registro</sp>
               <th className="text-right px-5 py-3">Acciones</th>
             </tr>
           </thead>
@@ -103,7 +103,7 @@ export default function PasajerosPage() {
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 text-sm font-bold shrink-0">
-                        {p.usuario?.nombre?.[0] ?? '?'}
+                        {p.usuario√∫nombre?.[0] ?? '?'}
                       </div>
                       <div>
                         <p className="text-white font-semibold text-sm">{p.usuario?.nombre}</p>
