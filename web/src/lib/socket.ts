@@ -1,12 +1,23 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+// Use NEXT_PUBLIC_API_URL as fallback when SOCKET_URL is unset or stale (fly.dev)
+let SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || '';
+if (!SOCKET_URL || SOCKET_URL.includes('fly.dev') || SOCKET_URL.includes('localhost')) {
+  SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'https://transporte-mina.onrender.com';
+}
 
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('tm_token') : '';
+    // Token stored by Zustand persist under tm-auth key
+    let token = '';
+    if (typeof window !== 'undefined') {
+      try {
+        const auth = JSON.parse(localStorage.getItem('tm-auth') || '{}');
+        token = auth?.state?.token || '';
+      } catch { token = ''; }
+    }
     socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket', 'polling'],
