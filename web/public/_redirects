@@ -1,4 +1,2 @@
 /transporte /transporte/ 308
-/transporte/ /transporte/login/ 302
 /transporte/_next/* /_next/:splat 200
-/transporte/* /transporte/:splat 200
