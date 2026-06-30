@@ -20,7 +20,7 @@ export default function PasajerosPage() {
   const [pasajeros,  setPasajeros]  = useState<Pasajero[]>([]);
   const [pendientes, setPendientes] = useState<Pasajero[]>([]);
   const [loading,    setLoading]    = useState(!hasCache('pasajeros'));
-  const [tab,        setTab]        = useState<'todos' | 'pendientes'>('todos')�{
+  const [tab,        setTab]        = useState<'todos' | 'pendientes'>('todos');
   const [filtro,     setFiltro]     = useState('');
 
   const cargar = async () => {
@@ -57,7 +57,9 @@ export default function PasajerosPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-black text-white">Pasajeros</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{pasajeros.length} registrados · {pendientes.length} pendientes de aprobacion</p>
+          <p className="text-slate-500 text-sm mt-0.5">
+            {pasajeros.length} registrados &middot; {pendientes.length} pendientes de aprobacion
+          </p>
         </div>
       </div>
 
@@ -87,7 +89,7 @@ export default function PasajerosPage() {
               <th className="text-left px-5 py-3">Ruta</th>
               <th className="text-left px-5 py-3">Paradero</th>
               <th className="text-left px-5 py-3">Estado hoy</th>
-              <th className="text-left px-5 py-3">Registro</sp>
+              <th className="text-left px-5 py-3">Registro</th>
               <th className="text-right px-5 py-3">Acciones</th>
             </tr>
           </thead>
@@ -103,7 +105,7 @@ export default function PasajerosPage() {
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 text-sm font-bold shrink-0">
-                        {p.usuarioúnombre?.[0] ?? '?'}
+                        {p.usuario?.nombre?.[0] ?? '?'}
                       </div>
                       <div>
                         <p className="text-white font-semibold text-sm">{p.usuario?.nombre}</p>
