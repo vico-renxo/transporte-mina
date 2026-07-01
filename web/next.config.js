@@ -3,9 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'export',
   basePath: '/transporte',
+  assetPrefix: 'https://transporte-mina.pages.dev',
   trailingSlash: true,
   images: { unoptimized: true },
-  // Skip type/lint errors during CF Pages build — checked by IDE locally
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   env: {
