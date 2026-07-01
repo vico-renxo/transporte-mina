@@ -3,7 +3,6 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'export',
   basePath: '/transporte',
-  assetPrefix: 'https://transporte-mina.pages.dev',
   trailingSlash: true,
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: true },
