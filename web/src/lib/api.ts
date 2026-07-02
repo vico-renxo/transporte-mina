@@ -59,8 +59,10 @@ export const actualizarVehiculo = (id: string, data: any) => api.put(`/vehiculos
 // --- Pasajeros ---
 export const getPasajeros   = ()          => api.get('/pasajeros').then(r => r.data);
 export const getPendientes  = ()          => api.get('/pasajeros/pendientes').then(r => r.data);
-export const aprobarPasajero= (id: string) => api.post(`/pasajeros/${id}/aprobar`).then(r => r.data);
-export const getEstadosHoy  = (rutaId: string) => api.get(`/pasajeros/estados/${rutaId}`).then(r => r.data);
+export const aprobarPasajero= (id: string, paraderoId?: string) =>
+  api.post(`/pasajeros/${id}/aprobar`, { paraderoId }).then(r => r.data);
+// FIX: la ruta real del backend es /pasajeros/estados-hoy/:rutaId (antes /pasajeros/estados/ → 404)
+export const getEstadosHoy  = (rutaId: string) => api.get(`/pasajeros/estados-hoy/${rutaId}`).then(r => r.data);
 
 // --- Checkins ---
 export const getCheckins    = (ejecucionId: string) => api.get(`/checkin/${ejecucionId}`).then(r => r.data);

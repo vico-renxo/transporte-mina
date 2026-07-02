@@ -4,7 +4,13 @@ const jwt = require('jsonwebtoken');
 const prisma = new PrismaClient();
 
 async function login(email, password) {
-  const usuario = await prisma.usuario.findUnique({ where: { email } });
+  const usuario = await prisma.usuario.findUnique({
+    where: { email },
+    include: {
+      conductor: { select: { id: true } },
+      pasajero:  { select: { id: true } }
+    }
+  });
   if (!usuario || !usuario.activo) {
     throw { status: 401, message: 'Credenciales inválidas' };
   }
@@ -25,7 +31,17 @@ async function login(email, password) {
 
   return {
     token,
-    usuario: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol, email: usuario.email, telefono: usuario.telefono }
+    usuario: {
+      id: usuario.id,
+      nombre: usuario.nombre,
+      rol: usuario.rol,
+      email: usuario.email,
+      telefono: usuario.telefono,
+      // FIX: el panel conductor filtra ejecuciones por conductorId.
+      // Antes el login no lo devolvía y usuario.conductorId era siempre undefined.
+      conductorId: usuario.conductor?.id ?? null,
+      pasajeroId:  usuario.pasajero?.id ?? null
+    }
   };
 }
 
@@ -61,5 +77,4 @@ async function cambiarPassword(usuarioId, passwordActual, passwordNueva) {
   return prisma.usuario.update({ where: { id: usuarioId }, data: { password: hash } });
 }
 
-module.exports = { login, registrarPasajero, actualizarFcmToken, cambiarPassword};
-
+module.exports = { login, registrarPasajero, actualizarFcmToken, cambiarPassword };

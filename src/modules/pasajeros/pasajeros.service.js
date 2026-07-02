@@ -7,13 +7,57 @@ function startOfDay() {
   return d;
 }
 
+// FIX: antes esta lógica vivía en pasajeros.routes.js y creaba un
+// `new PrismaClient()` POR CADA REQUEST → fuga de conexiones con pgBouncer.
+// Ahora usa el singleton del módulo.
+async function obtenerPasajeroPorUsuario(usuarioId) {
+  const pasajero = await prisma.pasajero.findFirst({ where: { usuarioId } });
+  if (!pasajero) throw { status: 404, message: 'Perfil de pasajero no encontrado' };
+  return pasajero;
+}
+
+async function obtenerMiPerfil(usuarioId) {
+  const pasajero = await prisma.pasajero.findFirst({
+    where: { usuarioId },
+    include: {
+      usuario:  { select: { nombre: true, email: true } },
+      ruta:     { select: { id: true, nombre: true, horaInicio: true, origen: true, destino: true } },
+      paradero: { select: { id: true, nombre: true, lat: true, lng: true, orden: true } },
+    }
+  });
+  if (!pasajero) throw { status: 404, message: 'Perfil de pasajero no encontrado' };
+
+  const ejecucion = pasajero.rutaId ? await prisma.rutaEjecucion.findFirst({
+    where: { rutaId: pasajero.rutaId, estado: 'EN_RUTA' },
+    include: {
+      coordenadas: { orderBy: { timestamp: 'desc' }, take: 1 },
+      conductor:   { include: { usuario: { select: { nombre: true } } } },
+      vehiculo:    { select: { placa: true, modelo: true, marca: true } },
+    }
+  }) : null;
+
+  return {
+    pasajero,
+    ejecucionActiva: ejecucion ? {
+      id: ejecucion.id,
+      estado: ejecucion.estado,
+      conductorNombre: ejecucion.conductor?.usuario?.nombre || '—',
+      vehiculo: ejecucion.vehiculo
+        ? `${ejecucion.vehiculo.marca} ${ejecucion.vehiculo.modelo} - ${ejecucion.vehiculo.placa}`
+        : '—',
+      ultimaLat: ejecucion.coordenadas?.[0]?.lat ?? null,
+      ultimaLng: ejecucion.coordenadas?.[0]?.lng ?? null,
+      ultimaActualizacion: ejecucion.coordenadas?.[0]?.timestamp || ejecucion.iniciadaEn,
+    } : null
+  };
+}
+
 async function declararEstado({ pasajeroId, rutaId, estado }) {
   const estadosValidos = ['NORMAL', 'POR_MIS_MEDIOS', 'AUSENTE'];
   if (!estadosValidos.includes(estado)) {
     throw { status: 400, message: `Estado inválido. Opciones: ${estadosValidos.join(', ')}` };
   }
 
-  // Verificar que la ruta existe
   const ruta = await prisma.ruta.findUnique({ where: { id: rutaId } });
   if (!ruta) throw { status: 404, message: 'Ruta no encontrada' };
 
@@ -24,7 +68,6 @@ async function declararEstado({ pasajeroId, rutaId, estado }) {
     update: { estado, declaradoEn: new Date() }
   });
 
-  // Notificar al supervisor vía WebSocket
   const { getIo } = require('../../config/socket');
   getIo()?.to('supervisores').emit('pasajero:estado-cambiado', {
     pasajeroId, rutaId, estado, timestamp: new Date()
@@ -34,7 +77,6 @@ async function declararEstado({ pasajeroId, rutaId, estado }) {
 }
 
 async function marcarEnParadero(pasajeroId) {
-  // Buscar la ejecución activa del pasajero
   const pasajero = await prisma.pasajero.findUnique({
     where: { id: pasajeroId },
     include: {
@@ -136,5 +178,6 @@ async function calificarServicio({ pasajeroId, rutaEjecucionId, estrellas, comen
 
 module.exports = {
   declararEstado, marcarEnParadero, listarPendientesAprobacion,
-  aprobarPasajero, listarPasajeros, obtenerEstadosHoy, calificarServicio
+  aprobarPasajero, listarPasajeros, obtenerEstadosHoy, calificarServicio,
+  obtenerMiPerfil, obtenerPasajeroPorUsuario
 };

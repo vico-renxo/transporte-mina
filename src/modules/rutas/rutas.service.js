@@ -173,6 +173,8 @@ async function obtenerEjecucionesActivas() {
 
     return {
       id: e.id,
+      // FIX: el panel conductor necesita rutaId para cargar los paraderos reales
+      rutaId:           e.rutaId,
       conductorId:      e.conductorId,
       rutaNombre:       e.ruta?.nombre                    || '—',
       conductorNombre:  e.conductor?.usuario?.nombre      || '—',

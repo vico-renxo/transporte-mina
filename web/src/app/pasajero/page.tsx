@@ -30,6 +30,13 @@ function distKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+// FIX: manejo de sesión expirada — limpia tokens propios del pasajero y vuelve al login
+function cerrarSesion() {
+  localStorage.removeItem('tm_pasajero_token');
+  localStorage.removeItem('tm_pasajero_user');
+  window.location.reload();
+}
+
 // ---------- Login ----------
 function LoginForm({ onLogin }: { onLogin: (token: string, user: any) => void }) {
   const [email, setEmail] = useState('');
@@ -57,7 +64,6 @@ function LoginForm({ onLogin }: { onLogin: (token: string, user: any) => void })
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-green-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🚌</div>
           <h1 className="text-2xl font-black text-white">TransporteMina</h1>
@@ -115,7 +121,6 @@ function MapaBus({ lat, lng, paraderoLat, paraderoLng, paraderoNombre }: {
   useEffect(() => {
     if (mapRef.current || !mapContainerRef.current) return;
 
-    // Cargar Leaflet dinámicamente
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
@@ -125,12 +130,12 @@ function MapaBus({ lat, lng, paraderoLat, paraderoLng, paraderoNombre }: {
     script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
     script.onload = () => {
       const L = (window as any).L;
+      if (!L || !mapContainerRef.current) return;
       const map = L.map(mapContainerRef.current).setView([lat, lng], 15);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap'
       }).addTo(map);
 
-      // Icono bus
       const busIcon = L.divIcon({
         html: '<div style="font-size:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🚌</div>',
         className: '', iconAnchor: [14, 14]
@@ -138,7 +143,6 @@ function MapaBus({ lat, lng, paraderoLat, paraderoLng, paraderoNombre }: {
       busMarkerRef.current = L.marker([lat, lng], { icon: busIcon }).addTo(map)
         .bindPopup('<b>Tu bus</b><br>En camino…').openPopup();
 
-      // Paradero
       if (paraderoLat && paraderoLng) {
         const stopIcon = L.divIcon({
           html: '<div style="font-size:22px">📍</div>',
@@ -157,7 +161,6 @@ function MapaBus({ lat, lng, paraderoLat, paraderoLng, paraderoNombre }: {
     return () => {};
   }, []);
 
-  // Actualizar posición del bus
   useEffect(() => {
     if (!busMarkerRef.current || !mapRef.current) return;
     busMarkerRef.current.setLatLng([lat, lng]);
@@ -175,6 +178,8 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
   const [error, setError] = useState('');
   const [estadoHoy, setEstadoHoy] = useState<string | null>(null);
   const [enviandoEstado, setEnviandoEstado] = useState(false);
+  const [avisado, setAvisado] = useState(false);
+  const [avisando, setAvisando] = useState(false);
   const socketRef = useRef<any>(null);
   const pollRef = useRef<any>(null);
 
@@ -183,6 +188,7 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
   const cargarPerfil = useCallback(async () => {
     try {
       const r = await fetch(`${BASE}/api/pasajeros/mi-perfil`, { headers });
+      if (r.status === 401) { cerrarSesion(); return; } // FIX: sesión expirada
       if (!r.ok) throw new Error('No se pudo cargar tu perfil');
       const data: Perfil = await r.json();
       setPerfil(data);
@@ -194,7 +200,6 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
     } finally { setLoading(false); }
   }, [token]);
 
-  // Conectar socket para actualizaciones en tiempo real
   const conectarSocket = useCallback((ejecucionId: string) => {
     if (socketRef.current) return;
     const script = document.createElement('script');
@@ -217,11 +222,11 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
     document.head.appendChild(script);
   }, []);
 
-  // Poll fallback cada 15s
   const iniciarPoll = useCallback((ejecucionId: string) => {
     pollRef.current = setInterval(async () => {
       try {
         const r = await fetch(`${BASE}/api/gps/ultima/${ejecucionId}`, { headers });
+        if (r.status === 401) { cerrarSesion(); return; } // FIX: sesión expirada
         if (r.ok) {
           const d = await r.json();
           setBusPos({ lat: d.lat, lng: d.lng, velocidad: d.velocidad || 0 });
@@ -249,17 +254,27 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
     if (!perfil?.pasajero) return;
     setEnviandoEstado(true);
     try {
-      await fetch(`${BASE}/api/pasajeros/estado`, {
+      const r = await fetch(`${BASE}/api/pasajeros/estado`, {
         method: 'POST', headers,
-        body: JSON.stringify({
-          pasajeroId: perfil.pasajero.id,
-          rutaId: perfil.pasajero.ruta.id,
-          estado
-        })
+        body: JSON.stringify({ estado })
       });
+      if (r.status === 401) { cerrarSesion(); return; }
+      if (!r.ok) throw new Error();
       setEstadoHoy(estado);
     } catch (e) { alert('Error al declarar estado'); }
     finally { setEnviandoEstado(false); }
+  };
+
+  // NUEVO: avisar al conductor que estoy esperando en el paradero
+  const avisarEnParadero = async () => {
+    setAvisando(true);
+    try {
+      const r = await fetch(`${BASE}/api/pasajeros/en-paradero`, { method: 'POST', headers });
+      if (r.status === 401) { cerrarSesion(); return; }
+      if (!r.ok) throw new Error();
+      setAvisado(true);
+    } catch { alert('No se pudo avisar al conductor'); }
+    finally { setAvisando(false); }
   };
 
   if (loading) {
@@ -280,6 +295,10 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
           <div className="text-4xl mb-4">⚠️</div>
           <p className="text-red-400 font-semibold">{error || 'No se encontró tu perfil de pasajero'}</p>
           <p className="text-slate-500 text-sm mt-2">Contacta a tu supervisor para que te registre en el sistema.</p>
+          <button onClick={cerrarSesion}
+            className="mt-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-6 py-2.5 rounded-xl text-sm transition-colors">
+            Cerrar sesión
+          </button>
         </div>
       </div>
     );
@@ -310,9 +329,13 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
             <p className="text-slate-500 text-xs">Hola, {pasajero.usuario.nombre.split(' ')[0]}</p>
           </div>
         </div>
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${ejecucionActiva ? 'bg-green-600/20 text-green-400' : 'bg-slate-800 text-slate-500'}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${ejecucionActiva ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`} />
-          {ejecucionActiva ? 'Bus en ruta' : 'Sin servicio activo'}
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${ejecucionActiva ? 'bg-green-600/20 text-green-400' : 'bg-slate-800 text-slate-500'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${ejecucionActiva ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`} />
+            {ejecucionActiva ? 'Bus en ruta' : 'Sin servicio activo'}
+          </div>
+          <button onClick={cerrarSesion} title="Cerrar sesión"
+            className="text-slate-500 hover:text-red-400 text-lg px-1 transition-colors">⏻</button>
         </div>
       </div>
 
@@ -335,6 +358,20 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
 
       {/* Info panel */}
       <div className="p-4 space-y-3 overflow-y-auto">
+
+        {/* Avisar al conductor (solo con bus en ruta) */}
+        {ejecucionActiva && (
+          avisado ? (
+            <div className="bg-green-600/15 border border-green-700/40 rounded-2xl p-4 text-center">
+              <p className="text-green-400 font-bold text-sm">📢 Conductor avisado — sabe que estás esperando</p>
+            </div>
+          ) : (
+            <button onClick={avisarEnParadero} disabled={avisando}
+              className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl transition-colors text-sm">
+              {avisando ? 'Avisando…' : '📢 Estoy en el paradero — avisar al conductor'}
+            </button>
+          )
+        )}
 
         {/* Ruta info */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
@@ -436,11 +473,13 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
 export default function PasajeroPage() {
   const [token, setToken] = useState<string | null>(null);
   const [usuario, setUsuario] = useState<any>(null);
+  const [listo, setListo] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('tm_pasajero_token');
     const u = localStorage.getItem('tm_pasajero_user');
     if (t && u) { setToken(t); setUsuario(JSON.parse(u)); }
+    setListo(true);
   }, []);
 
   const handleLogin = (t: string, u: any) => {
@@ -449,6 +488,7 @@ export default function PasajeroPage() {
     setToken(t); setUsuario(u);
   };
 
+  if (!listo) return null;
   if (!token) return <LoginForm onLogin={handleLogin} />;
   return <VistaPasajero token={token} usuario={usuario} />;
 }

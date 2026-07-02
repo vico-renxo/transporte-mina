@@ -1,13 +1,34 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://transporte-mina.onrender.com';
 
 /* ── tipos ── */
-interface Pasajero { id: string; nombre: string; paraderoNombre: string; estado: string; checkin?: boolean }
-interface Paradero  { id: string; nombre: string; orden: number; lat: number; lng: number; pasajeros: Pasajero[] }
-interface Ejecucion { id: string; rutaNombre: string; conductorNombre: string; vehiculoPlaca: string; paraderoActual: number; totalParaderos: number; pasajerosAbordo: number; ultimaLat: number | null; ultimaLng: number | null }
+interface PasajeroEstado { id: string; nombre: string; estado: 'NORMAL' | 'POR_MIS_MEDIOS' | 'AUSENTE'; declaradoEn: string | null }
+interface ParaderoHoy   { paraderoId: string; nombre: string; orden: number; pasajeros: PasajeroEstado[] }
+interface Ejecucion {
+  id: string; rutaId: string; conductorId: string;
+  rutaNombre: string; vehiculoPlaca: string;
+  paraderoActual: number; totalParaderos: number; pasajerosAbordo: number;
+}
+
+/* ── helper de sesión ── */
+function cerrarSesion() {
+  localStorage.removeItem('tm_conductor_token');
+  localStorage.removeItem('tm_conductor_user');
+  window.location.reload();
+}
+
+/* fetch con manejo de 401 (sesión expirada) */
+async function authFetch(url: string, token: string, init: RequestInit = {}) {
+  const r = await fetch(url, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(init.headers || {}) }
+  });
+  if (r.status === 401) { cerrarSesion(); throw new Error('Sesión expirada'); }
+  return r;
+}
 
 /* ── Login ── */
 function LoginForm({ onLogin }: { onLogin: (token: string, user: any) => void }) {
@@ -25,271 +46,342 @@ function LoginForm({ onLogin }: { onLogin: (token: string, user: any) => void })
         body: JSON.stringify({ email, password: pass })
       });
       const d = await r.json();
-      if (!r.ok || d.usuario?.rol !== 'CONDUCTOR') { setErr(d.error || 'Solo conductores'); return; }
+      if (!r.ok) { setErr(d.error || 'Credenciales incorrectas'); return; }
+      if (d.usuario?.rol !== 'CONDUCTOR') { setErr('Esta vista es solo para conductores'); return; }
       onLogin(d.token, d.usuario);
-    } catch { setErr('Error de conexión'); }
+    } catch { setErr('Error de conexión — el servidor puede estar despertando, intenta en 30s'); }
     finally { setLoading(false); }
   }
 
   return (
-    <div style={{ minHeight:'100vh', background:'#0a0e1a', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'system-ui,sans-serif' }}>
-      <div style={{ background:'#111827', border:'1px solid #1f2937', borderRadius:16, padding:32, width:340 }}>
-        <div style={{ textAlign:'center', marginBottom:24 }}>
-          <div style={{ fontSize:40, marginBottom:8 }}>🚌</div>
-          <h1 style={{ color:'#f9fafb', fontSize:20, fontWeight:700, margin:0 }}>TransporteMina</h1>
-          <p style={{ color:'#6b7280', fontSize:13, margin:'4px 0 0' }}>Panel del Conductor</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="text-5xl mb-3">🚌</div>
+          <h1 className="text-2xl font-black text-white">TransporteMina</h1>
+          <p className="text-slate-400 text-sm mt-1">Panel del Conductor</p>
         </div>
-        {err && <div style={{ background:'#450a0a', border:'1px solid #7f1d1d', borderRadius:8, padding:10, color:'#fca5a5', fontSize:13, marginBottom:16 }}>{err}</div>}
-        <form onSubmit={submit} style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" required
-            style={{ background:'#1f2937', border:'1px solid #374151', borderRadius:8, padding:'10px 12px', color:'#f9fafb', fontSize:14, outline:'none' }}/>
-          <input value={pass} onChange={e=>setPass(e.target.value)} type="password" placeholder="Contraseña" required
-            style={{ background:'#1f2937', border:'1px solid #374151', borderRadius:8, padding:'10px 12px', color:'#f9fafb', fontSize:14, outline:'none' }}/>
-          <button disabled={loading} style={{ background:'#2563eb', color:'#fff', border:'none', borderRadius:8, padding:'11px 0', fontWeight:700, fontSize:15, cursor:'pointer', opacity: loading ? 0.6 : 1 }}>
-            {loading ? 'Ingresando...' : 'Ingresar'}
+        <form onSubmit={submit} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+          <div>
+            <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">Contraseña</label>
+            <input type="password" value={pass} onChange={e => setPass(e.target.value)} required
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" />
+          </div>
+          {err && <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">{err}</div>}
+          <button disabled={loading}
+            className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors text-sm">
+            {loading ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
-        <p style={{ textAlign:'center', color:'#4b5563', fontSize:11, marginTop:14 }}>
-          Demo: conductor@empresa.com / admin123
-        </p>
+        <p className="text-center text-slate-600 text-xs mt-6">Demo: conductor@empresa.com / admin123</p>
       </div>
     </div>
   );
 }
+
+/* ── ruta demo simulada (Arequipa: Terminal Cayma → Parque Industrial) ── */
+const RUTA_DEMO = [
+  { lat:-16.3595, lng:-71.5478, vel:0,  label:'Terminal Cayma (inicio)' },
+  { lat:-16.3670, lng:-71.5450, vel:38, label:'Av. Cayma' },
+  { lat:-16.3740, lng:-71.5430, vel:45, label:'Puente Grau' },
+  { lat:-16.3810, lng:-71.5400, vel:42, label:'Bajando a Yanahuara' },
+  { lat:-16.3900, lng:-71.5390, vel:28, label:'Frenando — Yanahuara' },
+  { lat:-16.4043, lng:-71.5448, vel:0,  label:'Paradero Av. Ejército' },
+  { lat:-16.4100, lng:-71.5430, vel:35, label:'Saliendo de Yanahuara' },
+  { lat:-16.4028, lng:-71.5367, vel:42, label:'Hacia Óvalo Vallecito' },
+  { lat:-16.4028, lng:-71.5367, vel:0,  label:'Paradero Óvalo Vallecito' },
+  { lat:-16.4100, lng:-71.5300, vel:50, label:'Ruta a Parque Industrial' },
+  { lat:-16.4200, lng:-71.5150, vel:55, label:'Av. Porongoche' },
+  { lat:-16.4270, lng:-71.5050, vel:0,  label:'Parque Industrial (destino)' },
+];
 
 /* ── Vista principal ── */
 function VistaConductor({ token, usuario }: { token: string; usuario: any }) {
   const [ejecucion,  setEjecucion]  = useState<Ejecucion | null>(null);
-  const [paraderos,  setParaderos]  = useState<Paradero[]>([]);
-  const [checkins,   setCheckins]   = useState<Record<string,boolean>>({});
+  const [paraderos,  setParaderos]  = useState<ParaderoHoy[]>([]);
+  const [checkins,   setCheckins]   = useState<Record<string, boolean>>({});
   const [log,        setLog]        = useState<string[]>([]);
   const [gpsActivo,  setGpsActivo]  = useState(false);
-  const [paraderoIdx,setParaderoIdx]= useState(0);
-  const [pasAbordo,  setPasAbordo]  = useState(0);
-  const socketRef = useRef<Socket | null>(null);
-  const gpsRef    = useRef<NodeJS.Timeout | null>(null);
-  const hdrs = { 'Content-Type':'application/json', Authorization:`Bearer ${token}` };
+  const [gpsDemo,    setGpsDemo]    = useState(false);
+  const [cargando,   setCargando]   = useState(true);
+  const socketRef  = useRef<Socket | null>(null);
+  const demoRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const watchRef   = useRef<number | null>(null);
+  const lastSent   = useRef(0);
+  const ejecucionRef = useRef<Ejecucion | null>(null);
+  ejecucionRef.current = ejecucion;
 
-  function addLog(msg: string) { setLog(p => [`${new Date().toLocaleTimeString('es-PE')} — ${msg}`, ...p].slice(0,30)); }
+  const addLog = useCallback((msg: string) => {
+    setLog(p => [`${new Date().toLocaleTimeString('es-PE')} — ${msg}`, ...p].slice(0, 30));
+  }, []);
 
-  /* cargar ejecución activa */
-  async function cargarEjecucion() {
-    const r = await fetch(`${API}/api/rutas/activas`, { headers: hdrs }).then(r=>r.json());
-    const ej = r.ejecuciones?.find((e: any) => e.conductorId === usuario.conductorId || true);
-    if (!ej) { addLog('Sin ruta activa asignada'); return; }
-    setEjecucion(ej);
-    // cargar paraderos con pasajeros
-    const rutaId = await fetch(`${API}/api/rutas/activas`, { headers: hdrs })
-      .then(r=>r.json())
-      .then(d => d.ejecuciones?.[0]?.id);
-    // obtener paraderos de la ruta
-    const checkinData = await fetch(`${API}/api/checkin/${ej.id}`, { headers: hdrs }).then(r=>r.json());
-    const ckMap: Record<string,boolean> = {};
-    if (Array.isArray(checkinData)) checkinData.forEach((c:any) => { ckMap[c.pasajeroId] = c.subio; });
-    setCheckins(ckMap);
-    addLog(`✅ Ruta activa: ${ej.rutaNombre}`);
-  }
+  /* cargar ejecución activa + paraderos reales de la ruta */
+  const cargarEjecucion = useCallback(async () => {
+    setCargando(true);
+    try {
+      const r = await authFetch(`${API}/api/rutas/activas`, token).then(r => r.json());
+      // FIX: filtrar por el conductorId real (antes tenía `|| true` y tomaba cualquiera)
+      const ej: Ejecucion | undefined = usuario.conductorId
+        ? r.ejecuciones?.find((e: any) => e.conductorId === usuario.conductorId)
+        : r.ejecuciones?.[0]; // fallback para sesiones antiguas sin conductorId
+      if (!ej) {
+        setEjecucion(null); setParaderos([]);
+        addLog('Sin ruta activa asignada a ti');
+        return;
+      }
+      setEjecucion(ej);
+      addLog(`✅ Ruta activa: ${ej.rutaNombre}`);
 
-  /* conectar socket */
+      // FIX: paraderos y pasajeros reales desde la API (antes IDs hardcodeados)
+      const [estadosHoy, checkinData] = await Promise.all([
+        authFetch(`${API}/api/pasajeros/estados-hoy/${ej.rutaId}`, token).then(r => r.json()),
+        authFetch(`${API}/api/checkin/${ej.id}`, token).then(r => r.json()),
+      ]);
+      setParaderos(Array.isArray(estadosHoy) ? estadosHoy : []);
+      const ckMap: Record<string, boolean> = {};
+      if (Array.isArray(checkinData)) checkinData.forEach((c: any) => { ckMap[c.pasajeroId] = c.subio; });
+      setCheckins(ckMap);
+    } catch (e: any) {
+      if (e.message !== 'Sesión expirada') addLog('⚠️ Error cargando datos');
+    } finally { setCargando(false); }
+  }, [token, usuario.conductorId, addLog]);
+
+  /* socket */
   useEffect(() => {
     const s = io(API, { auth: { token } });
     socketRef.current = s;
     s.on('connect', () => { addLog('Socket conectado'); s.emit('conductor:join'); });
-    s.on('pasajero:en-paradero', (d: any) => {
-      addLog(`🔔 ${d.nombre} está esperando en paradero`);
-    });
+    s.on('pasajero:en-paradero', (d: any) => addLog(`🔔 ${d.nombre} está esperando en su paradero`));
     s.on('disconnect', () => addLog('Socket desconectado'));
     cargarEjecucion();
-    return () => { s.disconnect(); if (gpsRef.current) clearInterval(gpsRef.current); };
-  }, []);
+    return () => {
+      s.disconnect();
+      if (demoRef.current) clearInterval(demoRef.current);
+      if (watchRef.current !== null) navigator.geolocation?.clearWatch(watchRef.current);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* enviar GPS automático mientras está activo */
-  function toggleGPS() {
-    if (gpsActivo) {
-      if (gpsRef.current) clearInterval(gpsRef.current);
-      setGpsActivo(false);
-      addLog('GPS detenido');
-      return;
-    }
-    if (!ejecucion) { addLog('Sin ruta activa'); return; }
-    setGpsActivo(true);
-    addLog('GPS iniciado — enviando cada 5s');
-    let step = 0;
-    // coordenadas simuladas: Terminal Cayma → Parque Industrial (AQP-1)
-    const ruta = [
-      { lat:-16.3595, lng:-71.5478, vel:0,  label:'Terminal Cayma (inicio)' },
-      { lat:-16.3670, lng:-71.5450, vel:38, label:'Av. Cayma' },
-      { lat:-16.3740, lng:-71.5430, vel:45, label:'Puente Grau' },
-      { lat:-16.3810, lng:-71.5400, vel:42, label:'Bajando a Yanahuara' },
-      { lat:-16.3900, lng:-71.5390, vel:28, label:'Frenando — Yanahuara' },
-      { lat:-16.4043, lng:-71.5448, vel:0,  label:'Paradero Av. Ejército (parada #2)' },
-      { lat:-16.4100, lng:-71.5430, vel:35, label:'Saliendo de Yanahuara' },
-      { lat:-16.4028, lng:-71.5367, vel:42, label:'Hacia Óvalo Vallecito' },
-      { lat:-16.4028, lng:-71.5367, vel:0,  label:'Paradero Óvalo Vallecito (parada #3)' },
-      { lat:-16.4100, lng:-71.5300, vel:50, label:'Ruta a Parque Industrial' },
-      { lat:-16.4200, lng:-71.5150, vel:55, label:'Av. Porongoche' },
-      { lat:-16.4270, lng:-71.5050, vel:0,  label:'Parque Industrial (destino)' },
-    ];
-    gpsRef.current = setInterval(async () => {
-      const p = ruta[step % ruta.length];
-      try {
-        await fetch(`${API}/api/gps/coordenada`, {
-          method:'POST', headers: hdrs,
-          body: JSON.stringify({ rutaEjecucionId: ejecucion.id, lat: p.lat, lng: p.lng, velocidad: p.vel })
-        });
-        addLog(`📡 GPS: ${p.label} · ${p.vel} km/h`);
-        setParaderoIdx(step % ruta.length);
-        step++;
-      } catch { addLog('Error enviando GPS'); }
-    }, 4000);
+  async function enviarCoordenada(lat: number, lng: number, velocidad: number, label?: string) {
+    const ej = ejecucionRef.current;
+    if (!ej) return;
+    try {
+      await authFetch(`${API}/api/gps/coordenada`, token, {
+        method: 'POST',
+        body: JSON.stringify({ rutaEjecucionId: ej.id, lat, lng, velocidad })
+      });
+      addLog(`📡 GPS${label ? `: ${label}` : ''} · ${Math.round(velocidad)} km/h`);
+    } catch { addLog('⚠️ Error enviando GPS'); }
   }
 
-  /* registrar checkin */
+  function detenerGPS() {
+    if (demoRef.current) { clearInterval(demoRef.current); demoRef.current = null; }
+    if (watchRef.current !== null) { navigator.geolocation?.clearWatch(watchRef.current); watchRef.current = null; }
+    setGpsActivo(false);
+    addLog('GPS detenido');
+  }
+
+  function iniciarGPS() {
+    if (!ejecucion) { addLog('Sin ruta activa'); return; }
+    if (gpsDemo || !('geolocation' in navigator)) {
+      // Modo demo: recorre la ruta simulada de Arequipa
+      let step = 0;
+      demoRef.current = setInterval(() => {
+        const p = RUTA_DEMO[step % RUTA_DEMO.length];
+        enviarCoordenada(p.lat, p.lng, p.vel, p.label);
+        step++;
+      }, 4000);
+      addLog('GPS DEMO iniciado — ruta simulada AQP');
+    } else {
+      // GPS real del teléfono
+      watchRef.current = navigator.geolocation.watchPosition(
+        pos => {
+          const now = Date.now();
+          if (now - lastSent.current < 4000) return; // máx. 1 envío cada 4s
+          lastSent.current = now;
+          enviarCoordenada(pos.coords.latitude, pos.coords.longitude, (pos.coords.speed || 0) * 3.6);
+        },
+        err => { addLog(`⚠️ GPS: ${err.message} — usa modo demo`); detenerGPS(); },
+        { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
+      );
+      addLog('GPS real iniciado — enviando posición');
+    }
+    setGpsActivo(true);
+  }
+
   async function registrarCheckin(pasajeroId: string, paraderoId: string, subio: boolean) {
     if (!ejecucion) return;
-    await fetch(`${API}/api/checkin`, {
-      method:'POST', headers: hdrs,
-      body: JSON.stringify({ rutaEjecucionId: ejecucion.id, paraderoId, pasajeroId, subio })
-    });
-    setCheckins(p => ({ ...p, [pasajeroId]: subio }));
-    setPasAbordo(p => subio ? p+1 : p);
-    addLog(subio ? `✅ Pasajero subió` : `❌ Pasajero no estaba`);
+    try {
+      await authFetch(`${API}/api/checkin`, token, {
+        method: 'POST',
+        body: JSON.stringify({ rutaEjecucionId: ejecucion.id, paraderoId, pasajeroId, subio })
+      });
+      setCheckins(p => ({ ...p, [pasajeroId]: subio }));
+      addLog(subio ? '✅ Pasajero abordó' : '❌ Pasajero no estaba');
+    } catch { addLog('⚠️ Error registrando checkin'); }
   }
 
-  /* finalizar ruta */
   async function finalizarRuta() {
-    if (!ejecucion) return;
-    await fetch(`${API}/api/rutas/${ejecucion.id}/finalizar`, { method:'POST', headers: hdrs });
-    addLog('🏁 Ruta finalizada');
-    setEjecucion(null);
-    if (gpsRef.current) clearInterval(gpsRef.current);
-    setGpsActivo(false);
+    if (!ejecucion || !confirm('¿Finalizar la ruta? Esta acción no se puede deshacer.')) return;
+    try {
+      await authFetch(`${API}/api/rutas/${ejecucion.id}/finalizar`, token, { method: 'POST' });
+      addLog('🏁 Ruta finalizada');
+      detenerGPS();
+      setEjecucion(null); setParaderos([]); setCheckins({});
+    } catch { addLog('⚠️ Error finalizando ruta'); }
   }
 
-  const style = {
-    root: { minHeight:'100vh', background:'#0a0e1a', fontFamily:'system-ui,sans-serif', color:'#f9fafb', padding:16 } as const,
-    card: { background:'#111827', border:'1px solid #1f2937', borderRadius:12, padding:16, marginBottom:12 } as const,
-    badge: (col: string) => ({ background:col+'22', color:col, border:`1px solid ${col}44`, borderRadius:20, padding:'2px 10px', fontSize:11, fontWeight:700 }),
-    btn:  (col: string, disabled=false) => ({ background:col, color:'#fff', border:'none', borderRadius:8, padding:'9px 16px', fontWeight:700, fontSize:13, cursor:disabled?'not-allowed':'pointer', opacity:disabled?0.5:1 } as const),
+  async function reportarIncidencia() {
+    if (!ejecucion) return;
+    const mensaje = prompt('Describe la incidencia (avería, accidente, bloqueo…):');
+    if (!mensaje) return;
+    try {
+      await authFetch(`${API}/api/rutas/${ejecucion.id}/incidencia`, token, {
+        method: 'POST', body: JSON.stringify({ mensaje })
+      });
+      addLog('🚨 Incidencia reportada — supervisor y pasajeros notificados');
+      detenerGPS();
+      setEjecucion(null);
+    } catch { addLog('⚠️ Error reportando incidencia'); }
+  }
+
+  const abordo = Object.values(checkins).filter(Boolean).length;
+  const totalPasajeros = paraderos.reduce((s, p) => s + p.pasajeros.length, 0);
+
+  const ESTADO_BADGE: Record<string, { txt: string; cls: string }> = {
+    POR_MIS_MEDIOS: { txt: '🚶 Por sus medios', cls: 'bg-yellow-500/15 text-yellow-400' },
+    AUSENTE:        { txt: '🙅 No viene hoy',   cls: 'bg-red-500/15 text-red-400' },
   };
 
   return (
-    <div style={style.root}>
-      {/* cabecera */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
-        <div style={{ fontSize:32 }}>🚌</div>
-        <div>
-          <h1 style={{ margin:0, fontSize:18, fontWeight:800 }}>TransporteMina — Conductor</h1>
-          <p style={{ margin:0, color:'#6b7280', fontSize:13 }}>Hola, {usuario.nombre}</p>
+    <div className="min-h-screen bg-slate-950 text-white pb-8">
+      {/* Header sticky */}
+      <div className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3 flex items-center gap-3">
+        <span className="text-2xl">🚌</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-sm leading-tight truncate">TransporteMina · Conductor</p>
+          <p className="text-slate-500 text-xs truncate">Hola, {usuario.nombre}</p>
         </div>
-        <span style={{ marginLeft:'auto', ...style.badge('#10b981') }}>EN LÍNEA</span>
+        <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${gpsActivo ? 'bg-green-600/20 text-green-400' : 'bg-slate-800 text-slate-500'}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${gpsActivo ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`} />
+          {gpsActivo ? 'GPS ON' : 'GPS OFF'}
+        </span>
+        <button onClick={cerrarSesion} title="Cerrar sesión"
+          className="text-slate-500 hover:text-red-400 text-lg px-1 transition-colors">⏻</button>
       </div>
 
-      {/* ruta activa */}
-      {ejecucion ? (
-        <div style={style.card}>
-          <p style={{ margin:'0 0 4px', color:'#9ca3af', fontSize:11, fontWeight:700, textTransform:'uppercase' }}>Ruta asignada</p>
-          <h2 style={{ margin:'0 0 8px', fontSize:16, fontWeight:700, color:'#f9fafb' }}>{ejecucion.rutaNombre}</h2>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
-            <span style={style.badge('#f59e0b')}>🚐 {ejecucion.vehiculoPlaca}</span>
-            <span style={style.badge('#60a5fa')}>📍 Parada {ejecucion.paraderoActual}/{ejecucion.totalParaderos}</span>
-            <span style={style.badge('#a78bfa')}>👥 {pasAbordo || ejecucion.pasajerosAbordo} abordo</span>
-          </div>
-          <div style={{ display:'flex', gap:8 }}>
-            <button style={style.btn(gpsActivo ? '#dc2626' : '#16a34a')} onClick={toggleGPS}>
-              {gpsActivo ? '⏹ Detener GPS' : '▶ Iniciar GPS'}
-            </button>
-            <button style={style.btn('#dc2626')} onClick={finalizarRuta}>🏁 Finalizar ruta</button>
-            <button style={style.btn('#374151')} onClick={cargarEjecucion}>🔄</button>
-          </div>
-        </div>
-      ) : (
-        <div style={{ ...style.card, textAlign:'center', padding:32 }}>
-          <p style={{ color:'#6b7280', margin:'0 0 12px' }}>Sin ruta activa</p>
-          <button style={style.btn('#2563eb')} onClick={cargarEjecucion}>🔄 Verificar</button>
-        </div>
-      )}
-
-      {/* checkins rápidos */}
-      {ejecucion && (
-        <div style={style.card}>
-          <p style={{ margin:'0 0 12px', color:'#9ca3af', fontSize:11, fontWeight:700, textTransform:'uppercase' }}>Registro de pasajeros — Parada actual</p>
-          <PassajeroCheckin token={token} ejecucionId={ejecucion.id} checkins={checkins} onCheckin={registrarCheckin} addLog={addLog}/>
-        </div>
-      )}
-
-      {/* log de eventos */}
-      <div style={style.card}>
-        <p style={{ margin:'0 0 8px', color:'#9ca3af', fontSize:11, fontWeight:700, textTransform:'uppercase' }}>Log de actividad</p>
-        <div style={{ maxHeight:200, overflowY:'auto', display:'flex', flexDirection:'column', gap:4 }}>
-          {log.length === 0 && <p style={{ color:'#4b5563', fontSize:13, margin:0 }}>Sin actividad</p>}
-          {log.map((l, i) => (
-            <p key={i} style={{ margin:0, fontSize:12, color: i===0 ? '#f9fafb' : '#6b7280', fontFamily:'monospace' }}>{l}</p>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Sub-componente: checkin por pasajero ── */
-function PassajeroCheckin({ token, ejecucionId, checkins, onCheckin, addLog }: {
-  token: string; ejecucionId: string; checkins: Record<string,boolean>;
-  onCheckin: (pasId: string, parId: string, subio: boolean) => void; addLog: (m:string)=>void
-}) {
-  const [estados, setEstados] = useState<any[]>([]);
-  const hdrs = { Authorization:`Bearer ${token}` };
-
-  useEffect(() => {
-    // cargar estados-hoy de todas las rutas activas
-    fetch(`${API}/api/rutas/activas`, { headers: hdrs })
-      .then(r=>r.json())
-      .then(async d => {
-        const ej = d.ejecuciones?.[0];
-        if (!ej) return;
-        // obtener ruta para saber el rutaId
-        const rutaInfo = await fetch(`${API}/api/rutas/activas`, { headers: hdrs }).then(r=>r.json());
-        // usar el primer rutaId disponible (simplificación)
-      });
-  }, []);
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-      <p style={{ color:'#4b5563', fontSize:12, margin:0 }}>
-        Haz clic en ✅ cuando el pasajero suba, ❌ si no está en el paradero.
-      </p>
-      {/* Paraderos AQP-1 con sus pasajeros */}
-      {[
-        { paraderoId:'cmqo2lvd10004159ey6065a9b', nombre:'Av. Ejército — Yanahuara', pasajeros:[
-          { id:'cmqo2oemb0003cxntka5u1rxm', nombre:'Carmen Quispe Huanca' },
-          { id:'cmqo2oeqy000bcxntquvsnrtb', nombre:'Roberto Villanueva Paz' }
-        ]},
-        { paraderoId:'cmqo2lvd10005159ezrabrmpq', nombre:'Óvalo Vallecito', pasajeros:[] },
-      ].map(par => (
-        <div key={par.paraderoId} style={{ background:'#1f2937', borderRadius:8, padding:12 }}>
-          <p style={{ margin:'0 0 8px', fontWeight:700, fontSize:13, color:'#e5e7eb' }}>📍 {par.nombre}</p>
-          {par.pasajeros.length === 0 && <p style={{ color:'#4b5563', fontSize:12, margin:0 }}>Sin pasajeros registrados</p>}
-          {par.pasajeros.map(p => (
-            <div key={p.id} style={{ display:'flex', alignItems:'center', gap:8, marginTop:6 }}>
-              <span style={{ flex:1, fontSize:13, color: checkins[p.id] !== undefined ? (checkins[p.id] ? '#4ade80' : '#f87171') : '#9ca3af' }}>
-                {checkins[p.id] !== undefined ? (checkins[p.id] ? '✅' : '❌') : '⏳'} {p.nombre}
-              </span>
-              {checkins[p.id] === undefined && (
-                <>
-                  <button onClick={() => onCheckin(p.id, par.paraderoId, true)}
-                    style={{ background:'#14532d', color:'#4ade80', border:'1px solid #166534', borderRadius:6, padding:'4px 10px', fontSize:12, cursor:'pointer', fontWeight:700 }}>
-                    ✅ Subió
-                  </button>
-                  <button onClick={() => onCheckin(p.id, par.paraderoId, false)}
-                    style={{ background:'#450a0a', color:'#f87171', border:'1px solid #7f1d1d', borderRadius:6, padding:'4px 10px', fontSize:12, cursor:'pointer', fontWeight:700 }}>
-                    ❌ No está
-                  </button>
-                </>
-              )}
+      <div className="p-4 space-y-3 max-w-lg mx-auto">
+        {/* Ruta activa */}
+        {ejecucion ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Ruta asignada</p>
+            <h2 className="font-bold text-lg">{ejecucion.rutaNombre}</h2>
+            <div className="flex flex-wrap gap-2 mt-2 mb-3">
+              <span className="bg-amber-500/15 text-amber-400 rounded-full px-3 py-1 text-xs font-bold">🚐 {ejecucion.vehiculoPlaca}</span>
+              <span className="bg-blue-500/15 text-blue-400 rounded-full px-3 py-1 text-xs font-bold">📍 Parada {ejecucion.paraderoActual}/{ejecucion.totalParaderos}</span>
+              <span className="bg-purple-500/15 text-purple-400 rounded-full px-3 py-1 text-xs font-bold">👥 {abordo}/{totalPasajeros} abordo</span>
             </div>
-          ))}
+            {/* Progreso */}
+            <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mb-4">
+              <div className="h-full bg-amber-500 transition-all duration-700"
+                style={{ width: `${ejecucion.totalParaderos ? (ejecucion.paraderoActual / ejecucion.totalParaderos) * 100 : 0}%` }} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={gpsActivo ? detenerGPS : iniciarGPS}
+                className={`${gpsActivo ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'} font-bold py-3 rounded-xl text-sm transition-colors`}>
+                {gpsActivo ? '⏹ Detener GPS' : '▶ Iniciar GPS'}
+              </button>
+              <button onClick={finalizarRuta}
+                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 font-bold py-3 rounded-xl text-sm transition-colors">
+                🏁 Finalizar
+              </button>
+              <button onClick={reportarIncidencia}
+                className="bg-red-950 hover:bg-red-900 border border-red-800/50 text-red-300 font-bold py-3 rounded-xl text-sm transition-colors">
+                🚨 Incidencia
+              </button>
+              <button onClick={cargarEjecucion}
+                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 font-bold py-3 rounded-xl text-sm transition-colors">
+                🔄 Actualizar
+              </button>
+            </div>
+            {/* Toggle modo demo */}
+            <label className="flex items-center gap-2 mt-3 text-xs text-slate-500 cursor-pointer select-none">
+              <input type="checkbox" checked={gpsDemo} onChange={e => setGpsDemo(e.target.checked)}
+                disabled={gpsActivo} className="accent-amber-500" />
+              Modo demo (ruta simulada de Arequipa, sin GPS del teléfono)
+            </label>
+          </div>
+        ) : (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
+            <div className="text-4xl mb-3 opacity-40">🛣️</div>
+            <p className="text-slate-400 font-semibold">{cargando ? 'Buscando tu ruta…' : 'Sin ruta activa'}</p>
+            <p className="text-slate-600 text-xs mt-1 mb-4">El supervisor debe iniciar la ruta y asignarte</p>
+            <button onClick={cargarEjecucion} disabled={cargando}
+              className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 font-bold px-6 py-2.5 rounded-xl text-sm transition-colors">
+              🔄 Verificar de nuevo
+            </button>
+          </div>
+        )}
+
+        {/* Checkin por paradero (dinámico) */}
+        {ejecucion && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-3">Registro de pasajeros</p>
+            {paraderos.length === 0 && (
+              <p className="text-slate-600 text-sm">Esta ruta no tiene paraderos con pasajeros registrados.</p>
+            )}
+            <div className="space-y-3">
+              {paraderos.map(par => (
+                <div key={par.paraderoId} className="bg-slate-800/60 rounded-xl p-3">
+                  <p className="font-bold text-sm mb-2 text-slate-200">📍 {par.orden}. {par.nombre}</p>
+                  {par.pasajeros.length === 0 && <p className="text-slate-600 text-xs">Sin pasajeros en este paradero</p>}
+                  <div className="space-y-2">
+                    {par.pasajeros.map(p => {
+                      const ck = checkins[p.id];
+                      const badge = ESTADO_BADGE[p.estado];
+                      return (
+                        <div key={p.id} className="flex items-center gap-2 flex-wrap">
+                          <span className={`flex-1 min-w-0 text-sm truncate ${ck === true ? 'text-green-400' : ck === false ? 'text-red-400' : 'text-slate-300'}`}>
+                            {ck === true ? '✅' : ck === false ? '❌' : '⏳'} {p.nombre}
+                          </span>
+                          {badge && <span className={`${badge.cls} rounded-full px-2 py-0.5 text-[10px] font-bold`}>{badge.txt}</span>}
+                          {ck === undefined && p.estado !== 'AUSENTE' && (
+                            <div className="flex gap-1.5">
+                              <button onClick={() => registrarCheckin(p.id, par.paraderoId, true)}
+                                className="bg-green-900/60 hover:bg-green-800 text-green-300 border border-green-800 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors">
+                                ✅ Subió
+                              </button>
+                              <button onClick={() => registrarCheckin(p.id, par.paraderoId, false)}
+                                className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-900 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors">
+                                ❌ No está
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Log */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2">Actividad</p>
+          <div className="max-h-48 overflow-y-auto space-y-1 font-mono text-xs">
+            {log.length === 0 && <p className="text-slate-600">Sin actividad</p>}
+            {log.map((l, i) => (
+              <p key={i} className={i === 0 ? 'text-slate-200' : 'text-slate-600'}>{l}</p>
+            ))}
+          </div>
         </div>
-      ))}
+      </div>
     </div>
   );
 }
@@ -298,11 +390,13 @@ function PassajeroCheckin({ token, ejecucionId, checkins, onCheckin, addLog }: {
 export default function ConductorPage() {
   const [token,   setToken]   = useState<string | null>(null);
   const [usuario, setUsuario] = useState<any>(null);
+  const [listo,   setListo]   = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('tm_conductor_token');
     const u = localStorage.getItem('tm_conductor_user');
     if (t && u) { setToken(t); setUsuario(JSON.parse(u)); }
+    setListo(true);
   }, []);
 
   function handleLogin(t: string, u: any) {
@@ -311,6 +405,7 @@ export default function ConductorPage() {
     setToken(t); setUsuario(u);
   }
 
-  if (!token) return <LoginForm onLogin={handleLogin}/>;
-  return <VistaConductor token={token} usuario={usuario}/>;
+  if (!listo) return null;
+  if (!token) return <LoginForm onLogin={handleLogin} />;
+  return <VistaConductor token={token} usuario={usuario} />;
 }
