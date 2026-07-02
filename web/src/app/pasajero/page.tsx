@@ -34,79 +34,7 @@ function distKm(lat1: number, lng1: number, lat2: number, lng2: number) {
 function cerrarSesion() {
   localStorage.removeItem('tm_pasajero_token');
   localStorage.removeItem('tm_pasajero_user');
-  window.location.reload();
-}
-
-// ---------- Login ----------
-function LoginForm({ onLogin }: { onLogin: (token: string, user: any) => void }) {
-  const [email, setEmail] = useState('');
-  const [pass, setPass] = useState('');
-  const [err, setErr] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleLogin = async () => {
-    if (!email || !pass) { setErr('Completa todos los campos'); return; }
-    setLoading(true); setErr('');
-    try {
-      const r = await fetch(`${BASE}/api/auth/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: pass })
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Credenciales incorrectas');
-      if (data.usuario?.rol !== 'PASAJERO') throw new Error('Esta vista es solo para pasajeros');
-      onLogin(data.token, data.usuario);
-    } catch (e: any) {
-      setErr(e.message);
-    } finally { setLoading(false); }
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-green-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-5xl mb-3">🚌</div>
-          <h1 className="text-2xl font-black text-white">TransporteMina</h1>
-          <p className="text-slate-400 text-sm mt-1">Seguimiento de tu bus</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
-          <h2 className="text-white font-bold text-lg mb-5">Ingresa tu cuenta</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">Email</label>
-              <input
-                type="email" value={email} onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                placeholder="pasajero@empresa.com"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-green-500 transition-colors"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">Contraseña</label>
-              <input
-                type="password" value={pass} onChange={e => setPass(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                placeholder="••••••••"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-green-500 transition-colors"
-              />
-            </div>
-            {err && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">
-                {err}
-              </div>
-            )}
-            <button onClick={handleLogin} disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors text-sm">
-              {loading ? 'Ingresando...' : 'Ingresar'}
-            </button>
-          </div>
-        </div>
-        <p className="text-center text-slate-600 text-xs mt-6">
-          ¿No tienes cuenta? Contacta a tu supervisor
-        </p>
-      </div>
-    </div>
-  );
+  window.location.href = '/transporte/login/';
 }
 
 // ---------- Mapa Leaflet (lazy) ----------
@@ -470,6 +398,7 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
 }
 
 // ---------- Root ----------
+// LOGIN UNIFICADO: sin formulario propio — redirige a viczul.com/transporte/login/
 export default function PasajeroPage() {
   const [token, setToken] = useState<string | null>(null);
   const [usuario, setUsuario] = useState<any>(null);
@@ -478,17 +407,10 @@ export default function PasajeroPage() {
   useEffect(() => {
     const t = localStorage.getItem('tm_pasajero_token');
     const u = localStorage.getItem('tm_pasajero_user');
-    if (t && u) { setToken(t); setUsuario(JSON.parse(u)); }
-    setListo(true);
+    if (t && u) { setToken(t); setUsuario(JSON.parse(u)); setListo(true); }
+    else { window.location.href = '/transporte/login/'; }
   }, []);
 
-  const handleLogin = (t: string, u: any) => {
-    localStorage.setItem('tm_pasajero_token', t);
-    localStorage.setItem('tm_pasajero_user', JSON.stringify(u));
-    setToken(t); setUsuario(u);
-  };
-
-  if (!listo) return null;
-  if (!token) return <LoginForm onLogin={handleLogin} />;
+  if (!listo || !token) return null;
   return <VistaPasajero token={token} usuario={usuario} />;
 }

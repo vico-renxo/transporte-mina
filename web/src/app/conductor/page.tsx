@@ -17,7 +17,7 @@ interface Ejecucion {
 function cerrarSesion() {
   localStorage.removeItem('tm_conductor_token');
   localStorage.removeItem('tm_conductor_user');
-  window.location.reload();
+  window.location.href = '/transporte/login/';
 }
 
 /* fetch con manejo de 401 (sesión expirada) */
@@ -28,60 +28,6 @@ async function authFetch(url: string, token: string, init: RequestInit = {}) {
   });
   if (r.status === 401) { cerrarSesion(); throw new Error('Sesión expirada'); }
   return r;
-}
-
-/* ── Login ── */
-function LoginForm({ onLogin }: { onLogin: (token: string, user: any) => void }) {
-  const [email, setEmail] = useState('conductor@empresa.com');
-  const [pass,  setPass]  = useState('admin123');
-  const [err,   setErr]   = useState('');
-  const [loading, setLoading] = useState(false);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true); setErr('');
-    try {
-      const r = await fetch(`${API}/api/auth/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: pass })
-      });
-      const d = await r.json();
-      if (!r.ok) { setErr(d.error || 'Credenciales incorrectas'); return; }
-      if (d.usuario?.rol !== 'CONDUCTOR') { setErr('Esta vista es solo para conductores'); return; }
-      onLogin(d.token, d.usuario);
-    } catch { setErr('Error de conexión — el servidor puede estar despertando, intenta en 30s'); }
-    finally { setLoading(false); }
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-5xl mb-3">🚌</div>
-          <h1 className="text-2xl font-black text-white">TransporteMina</h1>
-          <p className="text-slate-400 text-sm mt-1">Panel del Conductor</p>
-        </div>
-        <form onSubmit={submit} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
-          <div>
-            <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" />
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1.5">Contraseña</label>
-            <input type="password" value={pass} onChange={e => setPass(e.target.value)} required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" />
-          </div>
-          {err && <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">{err}</div>}
-          <button disabled={loading}
-            className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors text-sm">
-            {loading ? 'Ingresando…' : 'Ingresar'}
-          </button>
-        </form>
-        <p className="text-center text-slate-600 text-xs mt-6">Demo: conductor@empresa.com / admin123</p>
-      </div>
-    </div>
-  );
 }
 
 /* ── ruta demo simulada (Arequipa: Terminal Cayma → Parque Industrial) ── */
@@ -387,6 +333,8 @@ function VistaConductor({ token, usuario }: { token: string; usuario: any }) {
 }
 
 /* ── Root ── */
+// LOGIN UNIFICADO: esta página ya no tiene formulario propio.
+// Si no hay sesión de conductor, manda a viczul.com/transporte/login/
 export default function ConductorPage() {
   const [token,   setToken]   = useState<string | null>(null);
   const [usuario, setUsuario] = useState<any>(null);
@@ -395,17 +343,10 @@ export default function ConductorPage() {
   useEffect(() => {
     const t = localStorage.getItem('tm_conductor_token');
     const u = localStorage.getItem('tm_conductor_user');
-    if (t && u) { setToken(t); setUsuario(JSON.parse(u)); }
-    setListo(true);
+    if (t && u) { setToken(t); setUsuario(JSON.parse(u)); setListo(true); }
+    else { window.location.href = '/transporte/login/'; }
   }, []);
 
-  function handleLogin(t: string, u: any) {
-    localStorage.setItem('tm_conductor_token', t);
-    localStorage.setItem('tm_conductor_user', JSON.stringify(u));
-    setToken(t); setUsuario(u);
-  }
-
-  if (!listo) return null;
-  if (!token) return <LoginForm onLogin={handleLogin} />;
+  if (!listo || !token) return null;
   return <VistaConductor token={token} usuario={usuario} />;
 }
