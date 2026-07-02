@@ -11,14 +11,16 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 
-// Si 401 → redirigir a login
+// Si 401 → redirigir a login (solo si no estamos ya en login)
 api.interceptors.response.use(
   res => res,
   err => {
     if (err.response?.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('tm_token');
-      localStorage.removeItem('tm_user');
-      window.location.href = '/login';
+      if (!window.location.pathname.includes('/login')) {
+        localStorage.removeItem('tm_token');
+        localStorage.removeItem('tm_user');
+        window.location.href = '/transporte/login/';
+      }
     }
     return Promise.reject(err);
   }
