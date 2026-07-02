@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const API = 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://transporte-mina.onrender.com';
 
 /* ── tipos ── */
 interface Pasajero { id: string; nombre: string; paraderoNombre: string; estado: string; checkin?: boolean }
@@ -11,8 +11,8 @@ interface Ejecucion { id: string; rutaNombre: string; conductorNombre: string; v
 
 /* ── Login ── */
 function LoginForm({ onLogin }: { onLogin: (token: string, user: any) => void }) {
-  const [email, setEmail] = useState('conductor1@empresa.com');
-  const [pass,  setPass]  = useState('cond123');
+  const [email, setEmail] = useState('conductor@empresa.com');
+  const [pass,  setPass]  = useState('admin123');
   const [err,   setErr]   = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -50,8 +50,7 @@ function LoginForm({ onLogin }: { onLogin: (token: string, user: any) => void })
           </button>
         </form>
         <p style={{ textAlign:'center', color:'#4b5563', fontSize:11, marginTop:14 }}>
-          Demo: conductor1@empresa.com / cond123<br/>
-          También: hector.chavez@empresa.com / aqpcond123
+          Demo: conductor@empresa.com / admin123
         </p>
       </div>
     </div>
