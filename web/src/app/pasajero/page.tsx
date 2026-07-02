@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
-const BASE = 'http://localhost:3001';
+const BASE = process.env.NEXT_PUBLIC_API_URL || 'https://transporte-mina.onrender.com';
 
 // ---------- tipos ----------
 interface Perfil {
@@ -71,7 +71,7 @@ function LoginForm({ onLogin }: { onLogin: (token: string, user: any) => void })
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                placeholder="tu@email.com"
+                placeholder="pasajero@empresa.com"
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-green-500 transition-colors"
               />
             </div>
