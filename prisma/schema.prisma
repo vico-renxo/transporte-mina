@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ───────────────────────────────────────────────────────────────────
+// ─── Enums ──────────────────────────────────────────────────────────────────
 
 enum Rol {
   ADMIN
@@ -110,6 +110,11 @@ model Pasajero {
   aprobado        Boolean       @default(false)
   activo          Boolean       @default(true)
   creadoEn        DateTime      @default(now())
+  // NUEVO: domicilio declarado por el pasajero al registrarse (GPS del teléfono)
+  // El supervisor lo usa para asignar/validar el paradero más cercano.
+  domicilioLat    Float?
+  domicilioLng    Float?
+  direccion       String        @default("")
   usuario         Usuario       @relation(fields: [usuarioId], references: [id])
   ruta            Ruta?         @relation(fields: [rutaId], references: [id])
   paradero        Paradero?     @relation(fields: [paraderoId], references: [id])

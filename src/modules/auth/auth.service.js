@@ -45,7 +45,7 @@ async function login(email, password) {
   };
 }
 
-async function registrarPasajero({ nombre, email, telefono, password }) {
+async function registrarPasajero({ nombre, email, telefono, password, domicilioLat, domicilioLng, direccion }) {
   const existe = await prisma.usuario.findUnique({ where: { email } });
   if (existe) throw { status: 409, message: 'Este email ya está registrado' };
 
@@ -54,8 +54,16 @@ async function registrarPasajero({ nombre, email, telefono, password }) {
     data: { nombre, email, telefono, password: hash, rol: 'PASAJERO' }
   });
 
+  // NUEVO: el pasajero declara su domicilio (GPS) al registrarse.
+  // El supervisor lo valida y usa para asignar el paradero más cercano.
   await prisma.pasajero.create({
-    data: { usuarioId: usuario.id, aprobado: false }
+    data: {
+      usuarioId: usuario.id,
+      aprobado: false,
+      domicilioLat: typeof domicilioLat === 'number' ? domicilioLat : null,
+      domicilioLng: typeof domicilioLng === 'number' ? domicilioLng : null,
+      direccion: direccion || ''
+    }
   });
 
   return { mensaje: 'Registro enviado. El supervisor revisará y aprobará tu cuenta pronto.' };

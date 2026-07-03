@@ -3,11 +3,13 @@ import { useState } from 'react';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://transporte-mina.onrender.com';
 
-// REGISTRO DE PASAJEROS — usa POST /api/auth/registro-pasajero (ya existía en el backend).
-// Flujo: el pasajero se registra → queda PENDIENTE → el supervisor lo aprueba en
-// el panel admin (Pasajeros) asignándole su paradero → recién puede ver su bus.
+// REGISTRO DE PASAJEROS — POST /api/auth/registro-pasajero
+// NUEVO: el pasajero comparte su DOMICILIO por GPS. El supervisor lo ve al aprobar
+// y el sistema le sugiere el paradero más cercano a su casa.
 export default function RegistroPage() {
-  const [form, setForm] = useState({ nombre: '', email: '', telefono: '', password: '' });
+  const [form, setForm] = useState({ nombre: '', email: '', telefono: '', password: '', direccion: '' });
+  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsMsg, setGpsMsg] = useState('');
   const [err, setErr] = useState('');
   const [ok, setOk] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -15,13 +17,34 @@ export default function RegistroPage() {
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
+  function capturarGPS() {
+    if (!('geolocation' in navigator)) { setGpsMsg('Tu navegador no soporta GPS'); return; }
+    setGpsMsg('Obteniendo tu ubicación…');
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        setGps({ lat, lng });
+        setGpsMsg(`✅ Ubicación guardada (±${Math.round(pos.coords.accuracy)}m)`);
+        // Dirección aproximada (OpenStreetMap Nominatim, gratis) — editable por el usuario
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17`,
+            { headers: { 'Accept-Language': 'es' } });
+          const d = await r.json();
+          if (d.display_name) setForm(f => ({ ...f, direccion: f.direccion || d.display_name.split(',').slice(0, 3).join(',') }));
+        } catch {}
+      },
+      e => setGpsMsg('⚠️ No se pudo obtener: ' + e.message + '. Puedes escribir tu dirección igual.'),
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setErr('');
     try {
       const r = await fetch(`${API}/api/auth/registro-pasajero`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, domicilioLat: gps?.lat, domicilioLng: gps?.lng })
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Error en el registro');
@@ -37,7 +60,7 @@ export default function RegistroPage() {
           <div className="text-5xl mb-4">✅</div>
           <h1 className="text-white font-bold text-lg">¡Registro enviado!</h1>
           <p className="text-slate-400 text-sm mt-2">
-            Tu supervisor revisará tu solicitud y te asignará una ruta y paradero.
+            Tu supervisor validará tu domicilio y te asignará el paradero más cercano.
             Cuando te apruebe, podrás ingresar con tu email y contraseña.
           </p>
           <a href="/transporte/login/"
@@ -70,6 +93,20 @@ export default function RegistroPage() {
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-green-500 transition-colors" />
             </div>
           ))}
+
+          {/* Domicilio por GPS */}
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 space-y-2">
+            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Tu domicilio (para asignarte paradero)</p>
+            <button type="button" onClick={capturarGPS}
+              className={`w-full ${gps ? 'bg-green-900/40 border-green-700 text-green-300' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'} border font-bold py-2.5 rounded-lg text-sm transition-colors`}>
+              {gps ? '📍 Ubicación capturada — volver a intentar' : '📍 Usar mi ubicación actual (GPS)'}
+            </button>
+            {gpsMsg && <p className="text-xs text-slate-400">{gpsMsg}</p>}
+            <input type="text" value={form.direccion} onChange={set('direccion')}
+              placeholder="Dirección (calle, número, distrito)"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-green-500 transition-colors" />
+          </div>
+
           {err && <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">{err}</div>}
           <button type="submit" disabled={loading}
             className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-3 rounded-lg transition-colors">
