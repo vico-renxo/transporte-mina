@@ -108,6 +108,8 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
   const [enviandoEstado, setEnviandoEstado] = useState(false);
   const [avisado, setAvisado] = useState(false);
   const [avisando, setAvisando] = useState(false);
+  const [ubicMsg, setUbicMsg] = useState('');
+  const [actualizandoUbic, setActualizandoUbic] = useState(false);
   const socketRef = useRef<any>(null);
   const pollRef = useRef<any>(null);
 
@@ -203,6 +205,28 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
       setAvisado(true);
     } catch { alert('No se pudo avisar al conductor'); }
     finally { setAvisando(false); }
+  };
+
+  // NUEVO: el pasajero actualiza su domicilio desde su panel (PATCH /pasajeros/mi-domicilio)
+  const actualizarUbicacion = () => {
+    if (!('geolocation' in navigator)) { setUbicMsg('Tu navegador no soporta GPS'); return; }
+    setActualizandoUbic(true); setUbicMsg('Obteniendo tu ubicación…');
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        try {
+          const r = await fetch(`${BASE}/api/pasajeros/mi-domicilio`, {
+            method: 'PATCH', headers,
+            body: JSON.stringify({ domicilioLat: pos.coords.latitude, domicilioLng: pos.coords.longitude })
+          });
+          if (r.status === 401) { cerrarSesion(); return; }
+          if (!r.ok) throw new Error();
+          setUbicMsg(`✅ Domicilio actualizado (±${Math.round(pos.coords.accuracy)}m). Tu supervisor lo verá al revisar tu paradero.`);
+        } catch { setUbicMsg('⚠️ No se pudo guardar, intenta de nuevo'); }
+        finally { setActualizandoUbic(false); }
+      },
+      e => { setUbicMsg('⚠️ GPS: ' + e.message); setActualizandoUbic(false); },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
   };
 
   if (loading) {
@@ -387,6 +411,17 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Mi ubicación — actualizar domicilio */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2">Mi domicilio</p>
+          <button onClick={actualizarUbicacion} disabled={actualizandoUbic}
+            className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 border border-slate-700 text-slate-200 font-bold py-3 rounded-xl text-sm transition-colors">
+            {actualizandoUbic ? 'Actualizando…' : '📍 Actualizar mi ubicación (GPS)'}
+          </button>
+          {ubicMsg && <p className="text-xs text-slate-400 mt-2">{ubicMsg}</p>}
+          <p className="text-slate-600 text-[11px] mt-2">Si te mudaste, actualiza tu ubicación para que el supervisor reasigne tu paradero.</p>
         </div>
 
         <p className="text-center text-slate-700 text-xs pb-4">
