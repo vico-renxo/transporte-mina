@@ -105,8 +105,26 @@ async function marcarEnParadero(pasajeroId) {
 async function listarPendientesAprobacion() {
   return prisma.pasajero.findMany({
     where: { aprobado: false },
-    include: { usuario: { select: { nombre: true, email: true, telefono: true, creadoEn: true } } },
+    include: {
+      usuario:  { select: { nombre: true, email: true, telefono: true, creadoEn: true } },
+      // FIX: incluir la preferencia elegida en el registro (recojo en paradero)
+      paradero: { select: { id: true, nombre: true, orden: true } },
+      ruta:     { select: { id: true, nombre: true } }
+    },
     orderBy: { usuario: { creadoEn: 'desc' } }
+  });
+}
+
+// NUEVO: el pasajero actualiza su domicilio (GPS o dirección) desde su panel
+async function actualizarMiDomicilio(usuarioId, { domicilioLat, domicilioLng, direccion }) {
+  const pasajero = await obtenerPasajeroPorUsuario(usuarioId);
+  return prisma.pasajero.update({
+    where: { id: pasajero.id },
+    data: {
+      domicilioLat: typeof domicilioLat === 'number' ? domicilioLat : pasajero.domicilioLat,
+      domicilioLng: typeof domicilioLng === 'number' ? domicilioLng : pasajero.domicilioLng,
+      direccion: direccion !== undefined ? direccion : pasajero.direccion
+    }
   });
 }
 
@@ -179,5 +197,5 @@ async function calificarServicio({ pasajeroId, rutaEjecucionId, estrellas, comen
 module.exports = {
   declararEstado, marcarEnParadero, listarPendientesAprobacion,
   aprobarPasajero, listarPasajeros, obtenerEstadosHoy, calificarServicio,
-  obtenerMiPerfil, obtenerPasajeroPorUsuario
+  obtenerMiPerfil, obtenerPasajeroPorUsuario, actualizarMiDomicilio
 };

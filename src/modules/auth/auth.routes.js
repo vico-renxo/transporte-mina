@@ -13,11 +13,11 @@ router.post('/login', async (req, res, next) => {
 
 router.post('/registro-pasajero', async (req, res, next) => {
   try {
-    const { nombre, email, telefono, password, domicilioLat, domicilioLng, direccion } = req.body;
+    const { nombre, email, telefono, password, domicilioLat, domicilioLng, direccion, paraderoId } = req.body;
     if (!nombre || !email || !telefono || !password) {
       throw { status: 400, message: 'Todos los campos son requeridos' };
     }
-    res.status(201).json(await registrarPasajero({ nombre, email, telefono, password, domicilioLat, domicilioLng, direccion }));
+    res.status(201).json(await registrarPasajero({ nombre, email, telefono, password, domicilioLat, domicilioLng, direccion, paraderoId }));
   } catch (err) { next(err); }
 });
 

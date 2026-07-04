@@ -8,8 +8,10 @@ import { cached, bust, hasCache } from '@/lib/cache';
 interface Pasajero {
   id: string;
   usuario: { nombre: string; email: string; telefono?: string };
-  paradero: { nombre: string } | null;
-  ruta: { nombre: string } | null;
+  paradero: { id?: string; nombre: string } | null;
+  ruta: { id?: string; nombre: string } | null;
+  paraderoId?: string | null;
+  rutaId?: string | null;
   aprobado: boolean;
   activo: boolean;
   creadoEn: string;
@@ -62,6 +64,11 @@ export default function PasajerosPage() {
     setAprobando(p);
     let mejorRuta = rutas[0]?.id || '';
     let mejorParadero = rutas[0]?.paraderos?.[0]?.id || '';
+    if (p.paraderoId) {
+      // El pasajero eligió paradero al registrarse (o ya tiene uno asignado) → preseleccionarlo
+      const r = rutas.find(rt => rt.paraderos?.some(par => par.id === p.paraderoId));
+      if (r) { setRutaSel(r.id); setParaderoSel(p.paraderoId); return; }
+    }
     if (p.domicilioLat && p.domicilioLng) {
       let min = Infinity;
       for (const r of rutas) for (const par of (r.paraderos || [])) {
@@ -79,7 +86,7 @@ export default function PasajerosPage() {
     setEnviando(true);
     try {
       await aprobarPasajero(aprobando.id, paraderoSel);
-      toast.success(`${aprobando.usuario?.nombre} aprobado ✓`);
+      toast.success(`${aprobando.usuario?.nombre} ${aprobando.aprobado ? 'actualizado' : 'aprobado'} ✓`);
       bust('pasajeros', 'pendientes');
       setAprobando(null);
       cargar();
@@ -161,7 +168,13 @@ export default function PasajerosPage() {
                   </div>
                 </td>
                 <td className="px-5 py-3.5 text-slate-300 text-sm">{p.ruta?.nombre || <span className="text-amber-500/70 text-xs">sin asignar</span>}</td>
-                <td className="px-5 py-3.5 text-slate-300 text-sm">{p.paradero?.nombre || <span className="text-amber-500/70 text-xs">sin asignar</span>}</td>
+                <td className="px-5 py-3.5 text-slate-300 text-sm">
+                  {p.paradero?.nombre
+                    ? (!p.aprobado
+                        ? <span className="text-blue-400 text-xs font-semibold">🚏 {p.paradero.nombre} <span className="text-slate-500 font-normal">(eligió)</span></span>
+                        : p.paradero.nombre)
+                    : <span className="text-amber-500/70 text-xs">sin asignar</span>}
+                </td>
                 <td className="px-5 py-3.5 text-sm">
                   {p.domicilioLat && p.domicilioLng ? (
                     <a href={`https://www.openstreetmap.org/?mlat=${p.domicilioLat}&mlon=${p.domicilioLng}#map=17/${p.domicilioLat}/${p.domicilioLng}`}
@@ -181,7 +194,10 @@ export default function PasajerosPage() {
                       Aprobar
                     </button>
                   ) : (
-                    <span className="text-xs text-slate-600">Aprobado</span>
+                    <button onClick={() => abrirAprobacion(p)}
+                      className="text-xs bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors font-semibold">
+                      ✎ Editar
+                    </button>
                   )}
                 </td>
               </tr>
@@ -196,7 +212,7 @@ export default function PasajerosPage() {
           onClick={() => !enviando && setAprobando(null)}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl"
             onClick={e => e.stopPropagation()}>
-            <h2 className="text-white font-bold text-lg">Aprobar pasajero</h2>
+            <h2 className="text-white font-bold text-lg">{aprobando.aprobado ? 'Editar asignación' : 'Aprobar pasajero'}</h2>
             <p className="text-slate-400 text-sm mt-0.5 mb-4">
               Asigna ruta y paradero a <span className="text-white font-semibold">{aprobando.usuario?.nombre}</span>
             </p>
@@ -239,7 +255,8 @@ export default function PasajerosPage() {
                       : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750 hover:border-slate-600')}>
                   <span className="text-sm">
                     {paraderoSel === par.id ? '✓ ' : ''}#{par.orden} · {par.nombre}
-                    {i === 0 && par.dist !== null && <span className="ml-2 text-[10px] bg-green-600/20 text-green-400 px-1.5 py-0.5 rounded font-bold">MÁS CERCANO</span>}
+                    {par.id === aprobando.paraderoId && <span className="ml-2 text-[10px] bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded font-bold">🚏 ELEGIDO POR ÉL</span>}
+                    {i === 0 && par.dist !== null && par.id !== aprobando.paraderoId && <span className="ml-2 text-[10px] bg-green-600/20 text-green-400 px-1.5 py-0.5 rounded font-bold">MÁS CERCANO</span>}
                   </span>
                   {par.dist !== null && (
                     <span className="text-xs text-slate-500 shrink-0">
@@ -258,7 +275,7 @@ export default function PasajerosPage() {
               </button>
               <button onClick={confirmarAprobacion} disabled={enviando || !paraderoSel}
                 className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-                {enviando ? 'Aprobando…' : '✓ Aprobar y asignar'}
+                {enviando ? 'Guardando…' : aprobando.aprobado ? '✓ Guardar cambios' : '✓ Aprobar y asignar'}
               </button>
             </div>
           </div>

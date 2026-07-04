@@ -2,7 +2,7 @@ const express = require('express');
 const {
   declararEstado, marcarEnParadero, listarPendientesAprobacion,
   aprobarPasajero, listarPasajeros, obtenerEstadosHoy, calificarServicio,
-  obtenerMiPerfil, obtenerPasajeroPorUsuario
+  obtenerMiPerfil, obtenerPasajeroPorUsuario, actualizarMiDomicilio
 } = require('./pasajeros.service');
 const { authMiddleware, requireRol } = require('../../shared/middleware/auth');
 const router = express.Router();
@@ -11,6 +11,14 @@ const router = express.Router();
 // FIX: la lógica se movió al service — antes se creaba un PrismaClient por request
 router.get('/mi-perfil', authMiddleware, requireRol('PASAJERO'), async (req, res, next) => {
   try { res.json(await obtenerMiPerfil(req.usuario.id)); } catch (err) { next(err); }
+});
+
+// Pasajero actualiza su domicilio (GPS/dirección) desde su panel
+router.patch('/mi-domicilio', authMiddleware, requireRol('PASAJERO'), async (req, res, next) => {
+  try {
+    const { domicilioLat, domicilioLng, direccion } = req.body;
+    res.json(await actualizarMiDomicilio(req.usuario.id, { domicilioLat, domicilioLng, direccion }));
+  } catch (err) { next(err); }
 });
 
 router.get('/', authMiddleware, requireRol('ADMIN', 'SUPERVISOR'), async (req, res, next) => {

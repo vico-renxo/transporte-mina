@@ -1,6 +1,6 @@
 const express = require('express');
 const {
-  listarRutas, obtenerRuta, crearRuta, actualizarRuta,
+  listarRutas, listarRutasPublicas, obtenerRuta, crearRuta, actualizarRuta,
   iniciarRuta, finalizarRuta, reportarIncidencia,
   obtenerEjecucionesActivas, historialEjecuciones
 } = require('./rutas.service');
@@ -9,6 +9,12 @@ const router = express.Router();
 
 router.get('/', authMiddleware, async (req, res, next) => {
   try { res.json(await listarRutas()); } catch (err) { next(err); }
+});
+
+// PÚBLICO (sin auth): rutas y paraderos para el formulario de registro de pasajeros.
+// Solo expone nombres/orden — ningún dato sensible.
+router.get('/publicas', async (req, res, next) => {
+  try { res.json(await listarRutasPublicas()); } catch (err) { next(err); }
 });
 
 router.get('/activas', authMiddleware, requireRol('ADMIN', 'SUPERVISOR', 'GERENCIA', 'PASAJERO', 'CONDUCTOR'), async (req, res, next) => {

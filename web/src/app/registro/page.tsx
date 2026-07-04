@@ -6,16 +6,36 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://transporte-mina.onrender
 // REGISTRO DE PASAJEROS — POST /api/auth/registro-pasajero
 // NUEVO: el pasajero comparte su DOMICILIO por GPS. El supervisor lo ve al aprobar
 // y el sistema le sugiere el paradero más cercano a su casa.
+interface RutaPub { id: string; nombre: string; paraderos: { id: string; nombre: string; orden: number }[] }
+
 export default function RegistroPage() {
   const [form, setForm] = useState({ nombre: '', email: '', telefono: '', password: '', direccion: '' });
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsMsg, setGpsMsg] = useState('');
+  // Modalidad de recojo: en su DOMICILIO (GPS/manual) o en un PARADERO existente
+  const [modo, setModo] = useState<'DOMICILIO' | 'PARADERO'>('DOMICILIO');
+  const [rutasPub, setRutasPub] = useState<RutaPub[]>([]);
+  const [rutaSel, setRutaSel] = useState('');
+  const [paraderoSel, setParaderoSel] = useState('');
   const [err, setErr] = useState('');
   const [ok, setOk] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
+
+  // Cargar rutas/paraderos públicos al elegir "recojo en paradero"
+  async function cargarRutasPublicas() {
+    if (rutasPub.length) return;
+    try {
+      const d = await fetch(`${API}/api/rutas/publicas`).then(r => r.json());
+      if (Array.isArray(d)) {
+        setRutasPub(d);
+        setRutaSel(d[0]?.id || '');
+        setParaderoSel(d[0]?.paraderos?.[0]?.id || '');
+      }
+    } catch {}
+  }
 
   function capturarGPS() {
     if (!('geolocation' in navigator)) { setGpsMsg('Tu navegador no soporta GPS'); return; }
@@ -44,7 +64,11 @@ export default function RegistroPage() {
     try {
       const r = await fetch(`${API}/api/auth/registro-pasajero`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, domicilioLat: gps?.lat, domicilioLng: gps?.lng })
+        body: JSON.stringify(
+          modo === 'PARADERO'
+            ? { ...form, paraderoId: paraderoSel }
+            : { ...form, domicilioLat: gps?.lat, domicilioLng: gps?.lng }
+        )
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Error en el registro');
@@ -94,17 +118,49 @@ export default function RegistroPage() {
             </div>
           ))}
 
-          {/* Domicilio por GPS */}
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 space-y-2">
-            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Tu domicilio (para asignarte paradero)</p>
-            <button type="button" onClick={capturarGPS}
-              className={`w-full ${gps ? 'bg-green-900/40 border-green-700 text-green-300' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'} border font-bold py-2.5 rounded-lg text-sm transition-colors`}>
-              {gps ? '📍 Ubicación capturada — volver a intentar' : '📍 Usar mi ubicación actual (GPS)'}
-            </button>
-            {gpsMsg && <p className="text-xs text-slate-400">{gpsMsg}</p>}
-            <input type="text" value={form.direccion} onChange={set('direccion')}
-              placeholder="Dirección (calle, número, distrito)"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-green-500 transition-colors" />
+          {/* ¿Dónde te recogemos? — DOMICILIO o PARADERO */}
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 space-y-2.5">
+            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">¿Dónde te recogemos?</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setModo('DOMICILIO')}
+                className={`${modo === 'DOMICILIO' ? 'bg-green-600/20 border-green-600 text-green-300' : 'bg-slate-800 border-slate-600 text-slate-400 hover:bg-slate-700'} border rounded-lg py-2.5 text-sm font-bold transition-colors`}>
+                🏠 En mi domicilio
+              </button>
+              <button type="button" onClick={() => { setModo('PARADERO'); cargarRutasPublicas(); }}
+                className={`${modo === 'PARADERO' ? 'bg-green-600/20 border-green-600 text-green-300' : 'bg-slate-800 border-slate-600 text-slate-400 hover:bg-slate-700'} border rounded-lg py-2.5 text-sm font-bold transition-colors`}>
+                🚏 En un paradero
+              </button>
+            </div>
+
+            {modo === 'DOMICILIO' ? (
+              <>
+                <button type="button" onClick={capturarGPS}
+                  className={`w-full ${gps ? 'bg-green-900/40 border-green-700 text-green-300' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'} border font-bold py-2.5 rounded-lg text-sm transition-colors`}>
+                  {gps ? '📍 Ubicación capturada — volver a intentar' : '📍 Usar mi ubicación actual (GPS)'}
+                </button>
+                {gpsMsg && <p className="text-xs text-slate-400">{gpsMsg}</p>}
+                <input type="text" value={form.direccion} onChange={set('direccion')}
+                  placeholder="O escribe tu dirección manualmente (calle, número, distrito)"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-green-500 transition-colors" />
+                <p className="text-slate-600 text-[11px]">El supervisor te asignará el paradero más cercano a tu casa.</p>
+              </>
+            ) : (
+              <>
+                <select value={rutaSel}
+                  onChange={e => { setRutaSel(e.target.value); const r = rutasPub.find(x => x.id === e.target.value); setParaderoSel(r?.paraderos?.[0]?.id || ''); }}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-green-500">
+                  {rutasPub.length === 0 && <option>Cargando rutas…</option>}
+                  {rutasPub.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                </select>
+                <select value={paraderoSel} onChange={e => setParaderoSel(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-green-500">
+                  {(rutasPub.find(r => r.id === rutaSel)?.paraderos || []).map(par => (
+                    <option key={par.id} value={par.id}>#{par.orden} · {par.nombre}</option>
+                  ))}
+                </select>
+                <p className="text-slate-600 text-[11px]">El supervisor confirmará tu paradero al aprobarte.</p>
+              </>
+            )}
           </div>
 
           {err && <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">{err}</div>}

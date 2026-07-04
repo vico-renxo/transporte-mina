@@ -45,9 +45,17 @@ async function login(email, password) {
   };
 }
 
-async function registrarPasajero({ nombre, email, telefono, password, domicilioLat, domicilioLng, direccion }) {
+async function registrarPasajero({ nombre, email, telefono, password, domicilioLat, domicilioLng, direccion, paraderoId }) {
   const existe = await prisma.usuario.findUnique({ where: { email } });
   if (existe) throw { status: 409, message: 'Este email ya está registrado' };
+
+  // NUEVO: si eligió "recojo en paradero", validamos y lo guardamos como preferencia.
+  // El supervisor lo verá preseleccionado al aprobar (aprobado sigue en false).
+  let paraderoPref = null;
+  if (paraderoId) {
+    paraderoPref = await prisma.paradero.findUnique({ where: { id: paraderoId } });
+    if (!paraderoPref) throw { status: 404, message: 'El paradero elegido no existe' };
+  }
 
   const hash = await bcrypt.hash(password, 12);
   const usuario = await prisma.usuario.create({
@@ -62,7 +70,9 @@ async function registrarPasajero({ nombre, email, telefono, password, domicilioL
       aprobado: false,
       domicilioLat: typeof domicilioLat === 'number' ? domicilioLat : null,
       domicilioLng: typeof domicilioLng === 'number' ? domicilioLng : null,
-      direccion: direccion || ''
+      direccion: direccion || '',
+      paraderoId: paraderoPref?.id ?? null,
+      rutaId: paraderoPref?.rutaId ?? null
     }
   });
 

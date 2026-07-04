@@ -30,6 +30,18 @@ async function listarRutas() {
   }));
 }
 
+// Para el registro público: solo id/nombre/paraderos básicos
+async function listarRutasPublicas() {
+  return prisma.ruta.findMany({
+    where: { activa: true },
+    select: {
+      id: true, nombre: true, origen: true, destino: true, horaInicio: true,
+      paraderos: { orderBy: { orden: 'asc' }, select: { id: true, nombre: true, orden: true } }
+    },
+    orderBy: { horaInicio: 'asc' }
+  });
+}
+
 async function obtenerRuta(id) {
   const ruta = await prisma.ruta.findUnique({
     where: { id },
@@ -218,7 +230,7 @@ async function historialEjecuciones({ fecha, rutaId, conductorId, limite = 50 })
 }
 
 module.exports = {
-  listarRutas, obtenerRuta, crearRuta, actualizarRuta,
+  listarRutas, listarRutasPublicas, obtenerRuta, crearRuta, actualizarRuta,
   iniciarRuta, finalizarRuta, reportarIncidencia,
   obtenerEjecucionesActivas, historialEjecuciones
 };
