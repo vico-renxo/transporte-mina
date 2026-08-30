@@ -1,0 +1,20 @@
+# Corre los guardianes en cada push y en cada Pull Request.
+# Gratis e ilimitado en repos públicos. No necesita tu PC encendida.
+name: Guardianes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  guardianes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Correr guardianes
+        run: node guardianes/guardianes.mjs
