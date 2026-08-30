@@ -62,6 +62,13 @@ y les asigna paradero.
 13. `new PrismaClient()` por request en `pasajeros.routes.js` → fuga de conexiones.
 15. `package.json` corria `prisma migrate deploy` en el build de Render, contra la regla 6. Ahora el build es solo `prisma generate`.
 16. `new PrismaClient()` en `gps.routes.js` (una conexion por request en el endpoint mas caliente del sistema). La consulta se movio a `gps.service.js` como `obtenerInfoEjecucion()`, con cache de 5 min: nombre de ruta, conductor y placa no cambian durante la ejecucion, asi que ya no se consulta la base en cada ping GPS.
+17. `web/public/simulacion.html` tenía la página entera escrita **dos veces**; la primera copia estaba truncada a la mitad de una función, así que ese `<script>` moría con `Unexpected token '<'`. En producción se veían 43 ids duplicados, 6 mapas en vez de 3 y la mitad de abajo congelada. Se borró la copia truncada (655 → 346 líneas).
+18. La simulación hacía `if(r.length)` sobre `/api/conductores` y `/api/vehiculos`, pero esos endpoints devuelven `{ conductores: [...] }` y `{ vehiculos: [...] }`, no un array pelado como `/api/rutas`. Fallaba **en silencio**: conductor y vehículo quedaban en "—" y `POST /rutas/:id/iniciar` devolvía 400, así que la simulación nunca creaba una `RutaEjecucion` real. Ahora usa `r.conductores || r` (igual que el panel web) y loguea error si la lista viene vacía.
+
+⚠️ **Ojo con esto**: la API no es uniforme. `/api/rutas` devuelve un array;
+`/api/conductores` y `/api/vehiculos` devuelven un objeto que lo envuelve.
+Cualquier consumidor nuevo tiene que usar `d.conductores || d`.
+
 14. **Latente, sin corregir:** el CF Worker no reenvía el body en POST. No molesta porque la app llama a Render directo. Si algún día enrutás por `/api` del Worker, esto explota primero.
 
 ## 6. Cómo se sube código (importante)
