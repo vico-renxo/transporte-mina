@@ -1,17 +1,31 @@
+# ════════════════════════════════════════════════════════════════
 # Worker que pone la API detras de Cloudflare.
-# Desplegar con:  npx wrangler deploy
+#
+# NOMBRE NUEVO A PROPOSITO. Ya existe un Worker llamado
+# "transporte-proxy" en la cuenta (el del BUG 14). Si desplegaramos con
+# ese nombre le pisariamos el codigo, y si tuviera una ruta ancha
+# configurada en el dashboard, este Worker pasaria a atender TODO
+# viczul.com. Con un nombre distinto, desplegar no puede romper nada de
+# lo que ya funciona. El viejo se borra despues, cuando este quede
+# andando.
+#
 # NUNCA editarlo desde el dashboard (regla 4): se pierde el historial.
+# ════════════════════════════════════════════════════════════════
 
-name = "transporte-proxy"
+name = "transporte-api"
 main = "worker/index.js"
 compatibility_date = "2026-01-01"
-compatibility_flags = ["nodejs_compat"]
+
+# PASO 1 — desplegar aca primero.
+# Da una URL propia (transporte-api.<tu-subdominio>.workers.dev) donde se
+# puede probar TODO sin tocar viczul.com ni un poquito.
+workers_dev = true
 
 [vars]
 ORIGEN = "https://transporte-mina.onrender.com"
 
-# La ruta: solo /api/*. El resto de viczul.com lo sigue sirviendo
-# Cloudflare Pages como hasta ahora, y /adecco queda intacto.
-[[routes]]
-pattern   = "viczul.com/api/*"
-zone_name = "viczul.com"
+# PASO 3 — descomentar recien cuando el paso 2 haya salido bien.
+# Enruta solo /api/*: el resto de viczul.com lo sigue sirviendo Pages.
+# [[routes]]
+# pattern   = "viczul.com/api/*"
+# zone_name = "viczul.com"

@@ -81,6 +81,7 @@ async function reenviar(req, origen) {
 export default {
   async fetch(req, env) {
     const origen = (env && env.ORIGEN) || ORIGEN_POR_DEFECTO;
+    const url = new URL(req.url);
 
     // Preflight: se responde en el borde, sin molestar a Render (que
     // ademas puede estar dormido y tardar un minuto en despertar).
@@ -94,6 +95,19 @@ export default {
           'access-control-max-age':       '86400',
         },
       });
+    }
+
+    // ── RED DE SEGURIDAD (regla 3) ──
+    // Este Worker SOLO tiene que atender /api/*. Si por una ruta mal puesta
+    // en el dashboard le llegara cualquier otra cosa —/transporte/login/,
+    // la raiz, /adecco— reenviarla a Render devolveria 404 y el sitio
+    // desapareceria. Ya paso una vez con web/functions/.
+    //
+    // Con esto, una ruta demasiado ancha deja de ser un desastre: lo que no
+    // es /api pasa de largo al origen, que es lo que se serviria si el
+    // Worker no existiera.
+    if (!url.pathname.startsWith('/api/') && url.pathname !== '/api') {
+      return fetch(req);
     }
 
     try {

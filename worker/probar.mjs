@@ -66,6 +66,18 @@ const err = await worker.fetch(new Request('https://viczul.com/api/rutas'), env)
 check('502 con json explicativo', err.status === 502);
 check('el mensaje habla del minuto de arranque', /1 minuto/.test((await err.json()).error));
 
+console.log('\n── red de seguridad: si la ruta es muy ancha, NO se come el sitio ──');
+let pasoDeLargo = null;
+globalThis.fetch = async (r) => { pasoDeLargo = (typeof r === 'string' ? r : r.url); return new Response('la pagina real', { status: 200 }); };
+for (const ruta of ['/transporte/login/', '/', '/adecco', '/apitrampa']) {
+  pasoDeLargo = null;
+  const resp = await worker.fetch(new Request('https://viczul.com' + ruta), env);
+  check(`${ruta} pasa de largo al origen`, pasoDeLargo === 'https://viczul.com' + ruta && (await resp.text()) === 'la pagina real', `-> fue a ${pasoDeLargo}`);
+}
+pasoDeLargo = null;
+await worker.fetch(new Request('https://viczul.com/api/rutas'), env);
+check('/api/rutas SI se proxea a Render', (pasoDeLargo || '').startsWith('https://backend.ejemplo'), `-> fue a ${pasoDeLargo}`);
+
 globalThis.fetch = fetchReal;
 console.log(`\n${'─'.repeat(46)}\n${ok} ok, ${mal} fallando`);
 process.exit(mal ? 1 : 0);
