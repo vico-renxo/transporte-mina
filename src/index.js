@@ -38,6 +38,11 @@ const io = new Server(server, {
 });
 
 // Middlewares globales
+// Render (y Cloudflare, cuando /api pase por ahi) ponen un proxy delante:
+// sin esto req.ip es el del proxy y el rate limit contaria a todo el mundo
+// como un solo cliente.
+app.set('trust proxy', 1);
+
 app.use(helmet());
 app.use(cors({ origin: (process.env.FRONTEND_URL || '*').split(',') }));
 app.use(express.json({ limit: '10mb' }));

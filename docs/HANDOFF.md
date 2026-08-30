@@ -74,7 +74,7 @@ Cualquier consumidor nuevo tiene que usar `d.conductores || d`.
 21. `POST /rutas/:id/iniciar` y `POST /rutas/iniciar` eran dos handlers separados con las mismas roles en distinto orden. Ahora comparten `ROLES_INICIAR` y `handlerIniciar`: divergir se volvió imposible.
 22. `POST /auth/cambiar-password` no validaba nada: aceptaba una contraseña de un carácter. Ahora exige 8 y que sea distinta de la actual, del lado del servidor.
 
-14. **Latente, sin corregir:** el CF Worker no reenvía el body en POST. No molesta porque la app llama a Render directo. Si algún día enrutás por `/api` del Worker, esto explota primero.
+14. ~~Latente~~ **CORREGIDO 2026-08-30** (falta desplegar el Worker): el CF Worker no reenvía el body en POST. No molesta porque la app llama a Render directo. Si algún día enrutás por `/api` del Worker, esto explota primero.
 
 ## 6. Cómo se sube código (importante)
 
@@ -148,7 +148,7 @@ Pendientes conocidos:
 Salidos de la revisión del 2026-08-30 (ordenados por lo que más duele):
 
 - [ ] **Cambiar la contraseña no invalida las sesiones abiertas en otros dispositivos.** Los JWT duran 7 días y no hay lista de revocación: si a alguien le entraron a la cuenta, cambiar la clave no lo echa. Haría falta versionar el token (un campo en `Usuario` que se incremente y que `authMiddleware` compare).
-- [ ] **No hay rate limiting en ningún endpoint.** `POST /auth/login` y `POST /auth/cambiar-password` se pueden martillar sin límite, y el segundo confirma si la contraseña actual es correcta (400 "Contraseña actual incorrecta"): es un oráculo. `express-rate-limit` en `src/index.js` alcanza.
+- [x] ~~No hay rate limiting~~ **hecho 2026-08-30**: `src/shared/middleware/rateLimit.js`, sin dependencias, aplicado a `/login` (10 cada 10 min), `/registro-pasajero` (5 por hora) y `/cambiar-password` (5 cada 15 min). 10 pruebas propias en `tests/rateLimit.test.js`. Nota vieja: `POST /auth/login` y `POST /auth/cambiar-password` se pueden martillar sin límite, y el segundo confirma si la contraseña actual es correcta (400 "Contraseña actual incorrecta"): es un oráculo. `express-rate-limit` en `src/index.js` alcanza.
 - [ ] **`web/next.config.js` tiene `typescript: { ignoreBuildErrors: true }` y `eslint: { ignoreDuringBuilds: true }`.** Un error de tipos no rompe el deploy: se convierte en un bug de runtime silencioso. Se puso para destrabar un deploy; conviene sacarlo y arreglar lo que aparezca.
 - [ ] **No hay `.gitattributes` y el repo mezcla finales de línea.** Los archivos están commiteados con LF y en Windows quedan CRLF; una edición descuidada convierte el archivo entero y produce diffs de cientos de líneas que tapan el cambio real (ya pasó una vez). Contenido sugerido: `* text=auto eol=lf` más `*.bat text eol=crlf`. Aplicarlo renormaliza el repo, así que conviene hacerlo en un commit propio que no toque nada más.
 
@@ -174,6 +174,58 @@ Para que la próxima sesión no repita el trabajo ni confíe de más:
 - **Simulación**, en producción: de 43 ids duplicados a 0, de 6 mapas a 3,
   cero errores de consola, y `POST /rutas/:id/iniciar` ya no devuelve 400.
 - **Lo que sigue sin probarse: los tests de Jest.** Necesitan `npm install`.
+
+## 8.c Cloudflare: lo que se está desaprovechando
+
+**Medido el 2026-08-30 con las cabeceras de respuesta:**
+
+| | ¿Pasa por Cloudflare? |
+|---|---|
+| La web (viczul.com) | sí — `cf-ray`, `server: cloudflare` |
+| **La API (onrender.com)** | **no** — sin `cf-ray` |
+
+El navegador llama a Render **directo**. Todo lo que da Cloudflare —WAF,
+rate limiting de borde, bot management, caché, analíticas, ocultar el
+origen— se aplica sólo a HTML y JS estático, que no tiene ni un secreto.
+Los logins, los tokens y los datos viajan por fuera.
+
+### El arreglo, ya escrito
+
+`worker/index.js` + `wrangler.toml` ponen `viczul.com/api/*` delante de
+Render. De paso arreglan el BUG 14 (el Worker viejo no reenviaba el body en
+POST, por eso la app no lo usaba). 17 pruebas en `worker/probar.mjs`,
+ejecutables sin desplegar: `node worker/probar.mjs`.
+
+El Worker ahora vive **en el repo**, no en el dashboard. Eso es lo que hace
+cumplible la regla 4: se despliega con `npx wrangler deploy` y queda
+historial, revisión y vuelta atrás.
+
+### Cómo activarlo (en este orden, no al revés)
+
+1. `npx wrangler deploy` desde la raíz.
+2. Probar a mano: `POST https://viczul.com/api/auth/login`. Si devuelve lo
+   mismo que Render, el body viaja bien.
+3. Recién ahí cambiar `web/.env.production`:
+   `NEXT_PUBLIC_API_URL=https://viczul.com`
+   **`NEXT_PUBLIC_SOCKET_URL` NO se toca**: el WebSocket de Socket.io sigue
+   yendo directo a Render a propósito.
+4. Subir. Si algo sale mal, volver el `.env.production` a Render y ya está.
+
+### Lo que se desbloquea recién después del paso 3
+
+- **Rate limiting y WAF en el borde**: los intentos ni llegan a Render.
+- **Ocultar el origen**: hoy `transporte-mina.onrender.com` es público y
+  cualquiera lo golpea salteándose Cloudflare.
+- **Analíticas reales de la API**, no sólo de la web.
+- **Caché de las respuestas GET que no cambian** (rutas, paraderos), que
+  además tapa el arranque de Render en las lecturas.
+
+### Lo que Cloudflare NO te va a arreglar
+
+El minuto de arranque de Render en el primer POST. Eso es del plan free de
+Render, no de Cloudflare. Se arregla pagando Render, o migrando el backend a
+Workers — pero eso último es reescribir Socket.io con Durable Objects y
+Prisma con un driver HTTP: proyecto aparte, no un ajuste.
 
 ## 9. Documentos hermanos
 

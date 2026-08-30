@@ -1,0 +1,17 @@
+# Worker que pone la API detras de Cloudflare.
+# Desplegar con:  npx wrangler deploy
+# NUNCA editarlo desde el dashboard (regla 4): se pierde el historial.
+
+name = "transporte-proxy"
+main = "worker/index.js"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ORIGEN = "https://transporte-mina.onrender.com"
+
+# La ruta: solo /api/*. El resto de viczul.com lo sigue sirviendo
+# Cloudflare Pages como hasta ahora, y /adecco queda intacto.
+[[routes]]
+pattern   = "viczul.com/api/*"
+zone_name = "viczul.com"
