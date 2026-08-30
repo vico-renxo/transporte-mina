@@ -140,7 +140,7 @@ Pendientes conocidos:
 - [x] ~~Fix B~~ hecho 2026-08-30: consulta movida al service, con caché de 5 min.
 - [x] ~~Pantalla para cambiar contraseña~~ hecha 2026-08-30: `/transporte/cambiar-password/`, sirve para los 3 roles, con acceso desde el sidebar del admin y el header de conductor y pasajero.
 - [x] ~~Unificar `startOfDay` y `distKm`~~ hecho 2026-08-30: `src/shared/fechas.js` y `web/src/lib/geo.ts`.
-- [ ] **Cargar conductores y vehículos en la base.** Hoy `/api/conductores` y `/api/vehiculos` devuelven vacío, así que ninguna ruta puede iniciarse de verdad (lo destapó correr la simulación en producción).
+- ~~Cargar conductores y vehículos en la base~~ — **diagnóstico equivocado, ya verificado.** La base nunca estuvo vacía: `Juan Mamani` y `ABA-123 Hiace` estaban ahí desde el seed. Lo que fallaba era el bug 18 (leer `{conductores:[...]}` como array). Con el arreglo desplegado, la simulación corrió entera, creó una `RutaEjecucion` real (`cmtfxim580001122u73mf7i0s`) y la finalizó sola.
 - [ ] **Decidir el huso horario de `startOfDay()`.** Devuelve la medianoche del servidor (Render corre en UTC), no la de Lima: el "día" arranca a las 19:00 hora peruana del día anterior. No se cambió junto con la unificación porque mover la ventana 5 horas altera qué registros de `EstadoTurno` matchean, y eso merece su propia prueba. Está explicado en `src/shared/fechas.js`.
 - [ ] Unificar el `Modal` repetido en conductores/rutas/vehículos (🟡 en MAPA_DUPLICADOS.md).
 - [ ] Unificar la carga de Leaflet por CDN (🟡 en MAPA_DUPLICADOS.md).
@@ -154,6 +154,26 @@ Salidos de la revisión del 2026-08-30 (ordenados por lo que más duele):
 
 - [ ] Borrar el usuario de prueba "Pedro GPS".
 - [ ] Aprobar el registro pendiente de Victor Renzo.
+
+## 8.b Cómo se verificó lo del 2026-08-30
+
+Para que la próxima sesión no repita el trabajo ni confíe de más:
+
+- **Tipos.** No hay `node_modules` ni salida a red en la máquina, y el proxy
+  de npm bloquea el registro entero. Se corrió `tsc` igual, con el TypeScript
+  del contenedor y shims propios de React/Next que conservan los genéricos.
+  `web/src/lib/geo.ts`: cero errores. Cero errores de asignabilidad o de
+  estrechamiento de nulos en todo el árbol. Los tres usos reales de `distKm`
+  se probaron aislados bajo `strict`, con dos controles negativos: sacar la
+  guarda de nulo da `TS2322`, y llamar con la firma vieja de 4 números da
+  `TS2554`. El verde no es un falso verde.
+- **Pantalla de contraseña**, en producción: con dos sesiones abiertas a la
+  vez, `?de=pasajero` eligió al pasajero (es exactamente el bug que se estaba
+  arreglando); las cuatro validaciones muestran su mensaje y bloquean el
+  botón; un token inválido devuelve 401 y redirige al login.
+- **Simulación**, en producción: de 43 ids duplicados a 0, de 6 mapas a 3,
+  cero errores de consola, y `POST /rutas/:id/iniciar` ya no devuelve 400.
+- **Lo que sigue sin probarse: los tests de Jest.** Necesitan `npm install`.
 
 ## 9. Documentos hermanos
 
