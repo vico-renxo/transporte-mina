@@ -28,12 +28,27 @@ viva Supabase (que se pausa a los 7 días sin uso).
 
 ## 3. Reglas absolutas (romperlas ya rompió la app)
 
-> **Regla 9, agregada el 2026-08-30:** NUNCA dejar un `wrangler.toml` de
-> Worker en la raíz del repo. Cloudflare Pages lo lee al construir la web y
-> falla, porque ahí espera configuración de Pages. El sitio se queda servido
-> con el build anterior **y nada lo avisa**: los commits entran, el CI sigue
-> en verde y la web no cambia. El del Worker vive en `worker/wrangler.toml`.
-> Lo vigila `verificar-wrangler`.
+> **Regla 9, agregada el 2026-08-30:** `NEXT_PUBLIC_API_URL` está escrito en
+> **dos lugares**, y el del dashboard le gana al del repo. Cloudflare Pages
+> tiene una variable de build con ese nombre, y en Next.js `process.env`
+> siempre pisa a `.env.production`. Cambiar sólo `web/.env.production` no
+> hace nada: el build sale verde, despliega, y la app sigue apuntando a
+> donde decía el dashboard. Tardó una hora en encontrarse porque **todo se
+> ve bien**: commit correcto, CI verde, build Success, sitio funcionando.
+>
+> Al tocar esa URL hay que cambiar **los dos** —o mejor, borrar la variable
+> del dashboard y dejar el repo como única fuente— y después **volver a
+> construir**: cambiar la variable no redespliega sola.
+>
+> **Y hay una segunda mitad, peor:** mover esa URL rompió el WebSocket. El
+> panel del conductor y el del pasajero abrían el socket con la MISMA
+> constante de la API (`io(API)`, `io(BASE)`), así que se fueron a
+> viczul.com — donde el Worker enruta sólo `/api/*` y `/socket.io/` da 404.
+> El GPS en vivo se congela sin mostrar ningún error. Ahora cada pantalla
+> tiene su `SOCKET` aparte y lo vigila `verificar-socket`.
+>
+> Cómo verificarlo de verdad: no alcanza con leer el bundle. Hay que hacer
+> que la app haga una llamada y mirar a qué host le pega.
 
 
 1. **NUNCA** enlaces absolutos sin basePath: es `/transporte/login/`, no `/login`.

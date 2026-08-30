@@ -4,6 +4,12 @@ import { distKm } from '@/lib/geo';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'https://transporte-mina.onrender.com';
 
+// OJO: el socket NO usa la misma URL que la API. La API va por Cloudflare
+// (viczul.com/api/*, que el Worker enruta a Render), pero el Worker enruta
+// SOLO /api/*: socket.io pide /socket.io/, que por ese camino cae en la web
+// estatica y da 404. El WebSocket va derecho a Render.
+const SOCKET = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://transporte-mina.onrender.com';
+
 // ---------- tipos ----------
 interface Perfil {
   pasajero: {
@@ -129,7 +135,7 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
     script.src = 'https://cdn.socket.io/4.7.2/socket.io.min.js';
     script.onload = () => {
       const io = (window as any).io;
-      const socket = io(BASE, { transports: ['websocket', 'polling'] });
+      const socket = io(SOCKET, { transports: ['websocket', 'polling'] });
       socket.on('connect', () => {
         socket.emit('pasajero:join', { rutaEjecucionId: ejecucionId });
       });

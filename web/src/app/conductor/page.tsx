@@ -4,6 +4,12 @@ import { io, Socket } from 'socket.io-client';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://transporte-mina.onrender.com';
 
+// OJO: el socket NO usa la misma URL que la API. La API va por Cloudflare
+// (viczul.com/api/*, que el Worker enruta a Render), pero el Worker enruta
+// SOLO /api/*: socket.io pide /socket.io/, que por ese camino cae en la web
+// estatica y da 404. El WebSocket va derecho a Render.
+const SOCKET = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://transporte-mina.onrender.com';
+
 /* ── tipos ── */
 interface PasajeroEstado { id: string; nombre: string; estado: 'NORMAL' | 'POR_MIS_MEDIOS' | 'AUSENTE'; declaradoEn: string | null }
 interface ParaderoHoy   { paraderoId: string; nombre: string; orden: number; pasajeros: PasajeroEstado[] }
@@ -99,7 +105,7 @@ function VistaConductor({ token, usuario }: { token: string; usuario: any }) {
 
   /* socket */
   useEffect(() => {
-    const s = io(API, { auth: { token } });
+    const s = io(SOCKET, { auth: { token } });
     socketRef.current = s;
     s.on('connect', () => { addLog('Socket conectado'); s.emit('conductor:join'); });
     s.on('pasajero:en-paradero', (d: any) => addLog(`🔔 ${d.nombre} está esperando en su paradero`));
