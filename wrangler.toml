@@ -24,8 +24,10 @@ workers_dev = true
 [vars]
 ORIGEN = "https://transporte-mina.onrender.com"
 
-# PASO 3 — descomentar recien cuando el paso 2 haya salido bien.
-# Enruta solo /api/*: el resto de viczul.com lo sigue sirviendo Pages.
-# [[routes]]
-# pattern   = "viczul.com/api/*"
-# zone_name = "viczul.com"
+# RUTA ACTIVA desde el 2026-08-30, despues de verificar el Worker en
+# .workers.dev. Enruta SOLO /api/*: el resto de viczul.com lo sigue
+# sirviendo Pages, y el Worker ademas deja pasar de largo cualquier cosa
+# que no empiece con /api/ (red de seguridad, regla 3).
+[[routes]]
+pattern   = "viczul.com/api/*"
+zone_name = "viczul.com"
