@@ -1,0 +1,5 @@
+{
+  "//": "Solo para que Node sepa que worker/ es ESM. El backend en src/ sigue siendo CommonJS y no se toca. Sin esto, node avisa MODULE_TYPELESS_PACKAGE_JSON y reparsea cada archivo.",
+  "type": "module",
+  "private": true
+}

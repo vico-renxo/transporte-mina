@@ -200,10 +200,27 @@ El Worker ahora vive **en el repo**, no en el dashboard. Eso es lo que hace
 cumplible la regla 4: se despliega con `npx wrangler deploy` y queda
 historial, revisión y vuelta atrás.
 
-### Cómo activarlo (en este orden, no al revés)
+### Estado: pasos 1 y 2 HECHOS (2026-08-30)
 
-1. `npx wrangler deploy` desde la raíz.
-2. Probar a mano: `POST https://viczul.com/api/auth/login`. Si devuelve lo
+El Worker está desplegado y verificado contra producción:
+
+    https://transporte-api.victorcaracela.workers.dev
+
+| Comprobación | Resultado |
+|---|---|
+| **BUG 14** — `POST /api/auth/login` por el Worker | `401 Credenciales inválidas`, igual que directo a Render. Si el body no viajara, sería `400 "Email y password requeridos"`. Esa diferencia es la prueba. |
+| Sobrecosto de latencia | ~135 ms (mediana 1395 vs 1260 ms, 4 muestras). Baja cuando esté en el mismo dominio. |
+| `cache-control` | `no-store`, puesto por el Worker |
+| Red de seguridad de ruta | `/transporte/login/` por el Worker devuelve el 404 de Cloudflare, **no** se reenvía a Render. Sin bucles. |
+
+Se desplegó con nombre **`transporte-api`**, distinto del viejo
+`transporte-proxy`, que sigue intacto. Borrar el viejo recién cuando el
+nuevo esté enrutado y andando.
+
+### Lo que falta (en este orden, no al revés)
+
+~~1. `npx wrangler deploy`~~ hecho. Se corre con `desplegar worker.bat`.
+~~2. Probarlo~~ hecho, ver la tabla de arriba. Lo que sigue: `POST https://viczul.com/api/auth/login`. Si devuelve lo
    mismo que Render, el body viaja bien.
 3. Poner en Render la variable `CONFIAR_EN_CLOUDFLARE=1`. **Sin esto el rate
    limit seguiría contando por `req.ip`, que detrás del Worker es el de
