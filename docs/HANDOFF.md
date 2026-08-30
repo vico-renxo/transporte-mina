@@ -20,7 +20,7 @@ Tres paneles sobre una sola app: **supervisor/admin**, **conductor**,
 | URL pública | https://viczul.com/transporte | entra por `/transporte/login/` |
 | Backend | Render (free) `transporte-mina.onrender.com` | Express + Socket.io + Prisma; servicio `srv-d8soacr6sc1c7393ke60` |
 | Base | Supabase proyecto `midimdsudblhonhhqwlv` | PostgreSQL, pooler `aws-1-sa-east-1` puerto **6543** |
-| Proxy | CF Worker `transporte-proxy` en viczul.com | ⚠️ no reenvía body en POST (BUG 14). La app NO lo usa. |
+| Proxy | CF Worker **`transporte-api`** (repo: `worker/`, `wrangler.toml`) | Ruta `viczul.com/api/*` → Render. **La app SÍ lo usa** desde el 2026-08-30. El viejo `transporte-proxy` quedó sin uso: se puede borrar. |
 
 **Render duerme a los 15 min sin tráfico**: el primer request tarda ~1 minuto.
 Hay una tarea programada que la despierta cada mañana 5:50 y de paso mantiene
@@ -216,6 +216,27 @@ El Worker está desplegado y verificado contra producción:
 Se desplegó con nombre **`transporte-api`**, distinto del viejo
 `transporte-proxy`, que sigue intacto. Borrar el viejo recién cuando el
 nuevo esté enrutado y andando.
+
+### TERMINADO — 2026-08-30
+
+Los cinco pasos están hechos y verificados contra producción:
+
+| # | Paso | Verificación |
+|---|---|---|
+| 1 | Worker desplegado | `transporte-api`, 22 pruebas verdes |
+| 2 | Probado en `.workers.dev` | BUG 14 cerrado con evidencia |
+| 3 | `CONFIAR_EN_CLOUDFLARE=1` en Render | leído del dashboard; las otras 5 variables intactas |
+| 4 | Ruta `viczul.com/api/*` activa | `wrangler` la reporta; `/rutas/publicas`, `/auth/login` y el 404 responden igual que directo |
+| 5 | App apuntando a `https://viczul.com` | este commit |
+
+`NEXT_PUBLIC_SOCKET_URL` sigue en Render **a propósito**, y ahora hay un
+guardián que impide moverlo: el Worker enruta sólo `/api/*`, así que un
+socket apuntando a viczul.com daría 404 y el mapa en vivo se congelaría sin
+mostrar ningún error.
+
+Para volver atrás si algo apareciera: poner `NEXT_PUBLIC_API_URL` de vuelta
+en `https://transporte-mina.onrender.com` y subir. El Worker puede quedar
+desplegado sin molestar a nadie.
 
 ### Lo que falta (en este orden, no al revés)
 

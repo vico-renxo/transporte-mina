@@ -6,7 +6,14 @@
 // 'http://localhost:3001', así que si web/.env.production desaparece o
 // pierde NEXT_PUBLIC_API_URL, el build sale verde, se publica, y todos
 // los botones fallan en silencio contra la PC del usuario.
-// Qué revisa: que web/.env.production exista y apunte a Render por https.
+// Qué revisa: que web/.env.production exista, que las dos URLs sean https
+// públicas, y que SOCKET_URL siga apuntando a Render.
+//
+// Lo del socket se agregó el 2026-08-30, cuando la API pasó a ir por
+// Cloudflare (viczul.com/api/*). Es tentador mover las dos URLs juntas, pero
+// el Worker enruta SOLO /api/*: si el socket apuntara a viczul.com, el
+// WebSocket se caería y el mapa en vivo dejaría de moverse — sin ningún
+// error visible en la pantalla, sólo un bus que no avanza.
 // Cero dependencias.
 // ════════════════════════════════════════════════════════
 import { existe, leer } from "./_util.mjs";
@@ -41,8 +48,21 @@ if (!existe(ENV)) {
   }
 }
 
+// El socket tiene que seguir yendo a Render: el Worker sólo enruta /api/*.
+if (existe(ENV)) {
+  const socket = leer(ENV).match(/^\s*NEXT_PUBLIC_SOCKET_URL\s*=\s*(.+)$/m);
+  if (socket && /viczul\.com/.test(socket[1])) {
+    console.error(`\n  ${ENV}: NEXT_PUBLIC_SOCKET_URL = ${socket[1].trim()}`);
+    console.error("     el WebSocket NO puede ir por Cloudflare: el Worker enruta sólo");
+     console.error("     /api/*, así que socket.io daría 404 y el mapa en vivo se congela");
+    console.error("     sin mostrar ningún error.");
+    console.error("     arreglalo así: NEXT_PUBLIC_SOCKET_URL=https://transporte-mina.onrender.com");
+    fallos++;
+  }
+}
+
 if (fallos) {
   console.error(`\n❌ URL DEL BACKEND: ${fallos} problema(s). El sitio se publicaría apuntando al lugar equivocado.\n`);
   process.exit(1);
 }
-console.log("✅ URL del backend OK: web/.env.production apunta a Render por https.");
+console.log("✅ URL del backend OK: API por Cloudflare, socket directo a Render.");
