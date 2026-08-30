@@ -30,6 +30,10 @@ const ORIGEN_POR_DEFECTO = 'https://transporte-mina.onrender.com';
 // Cabeceras que NO se reenvian: las pone Cloudflare o son del hop.
 const NO_REENVIAR = new Set([
   'host', 'cf-ray', 'cf-visitor', 'cf-ipcountry', 'cf-worker',
+  // cf-connecting-ip y x-forwarded-for se descartan del cliente y se
+  // reponen abajo con el valor de Cloudflare: si se dejara pasar el del
+  // cliente, cualquiera falsearia su IP y esquivaria el rate limit.
+  'cf-connecting-ip', 'x-forwarded-for',
   'x-forwarded-host', 'connection', 'keep-alive', 'transfer-encoding',
 ]);
 

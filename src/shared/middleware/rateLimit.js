@@ -13,6 +13,30 @@
 // dia conviene que el limite lo ponga Cloudflare en el borde.
 // ════════════════════════════════════════════════════════════════
 
+// ── De donde sale la IP del cliente ──
+//
+// OJO, esto estuvo MAL y se corrigio el 2026-08-30. La primera version
+// confiaba en las cabeceras cf-connecting-ip y x-forwarded-for antes que en
+// req.ip. Pero mientras la API no pase por Cloudflare, esas cabeceras las
+// escribe el cliente: cualquiera que no use un navegador manda una distinta
+// en cada intento y el limite deja de existir. Justo el que hace fuerza
+// bruta no usa navegador.
+//
+// Regla: por defecto, solo req.ip, que Express calcula desde el proxy de
+// Render con app.set('trust proxy', 1) y el cliente no puede falsear.
+// cf-connecting-ip se cree UNICAMENTE si CONFIAR_EN_CLOUDFLARE=1, que hay
+// que poner recien cuando /api pase de verdad por el Worker (paso 3 de
+// HANDOFF 8.c). Ahi la cabecera la escribe Cloudflare y pisa la del cliente.
+const CONFIAR_EN_CLOUDFLARE = process.env.CONFIAR_EN_CLOUDFLARE === '1';
+
+function ipDelCliente(req) {
+  if (CONFIAR_EN_CLOUDFLARE) {
+    const cf = req.headers['cf-connecting-ip'];
+    if (cf) return String(cf).trim();
+  }
+  return req.ip || 'desconocida';
+}
+
 // clave -> array de timestamps dentro de la ventana
 const golpes = new Map();
 
@@ -35,12 +59,7 @@ setInterval(() => {
  */
 function rateLimit({ max, ventanaMs, nombre }) {
   return (req, res, next) => {
-    // Detras de Render (y manana de Cloudflare) req.ip puede ser el proxy.
-    const ip =
-      req.headers['cf-connecting-ip'] ||
-      req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-      req.ip ||
-      'desconocida';
+    const ip = ipDelCliente(req);
 
     const clave = `${nombre}:${ip}`;
     const ahora = Date.now();
@@ -64,4 +83,4 @@ function rateLimit({ max, ventanaMs, nombre }) {
 // Solo para los tests: vaciar el estado entre casos.
 function _reiniciar() { golpes.clear(); }
 
-module.exports = { rateLimit, _reiniciar };
+module.exports = { rateLimit, _reiniciar, ipDelCliente };

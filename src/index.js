@@ -44,7 +44,13 @@ const io = new Server(server, {
 app.set('trust proxy', 1);
 
 app.use(helmet());
-app.use(cors({ origin: (process.env.FRONTEND_URL || '*').split(',') }));
+// exposedHeaders: sin esto el navegador NO puede leer Retry-After, y la
+// pantalla no tiene forma de decirle al usuario cuanto falta. El servidor lo
+// mandaba, pero CORS lo escondia.
+app.use(cors({
+  origin: (process.env.FRONTEND_URL || '*').split(','),
+  exposedHeaders: ['Retry-After'],
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

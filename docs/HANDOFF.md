@@ -205,11 +205,16 @@ historial, revisión y vuelta atrás.
 1. `npx wrangler deploy` desde la raíz.
 2. Probar a mano: `POST https://viczul.com/api/auth/login`. Si devuelve lo
    mismo que Render, el body viaja bien.
-3. Recién ahí cambiar `web/.env.production`:
+3. Poner en Render la variable `CONFIAR_EN_CLOUDFLARE=1`. **Sin esto el rate
+   limit seguiría contando por `req.ip`, que detrás del Worker es el de
+   Cloudflare: todos los usuarios contarían como uno solo.** Y al revés,
+   ponerla ANTES de que el Worker esté enrutando deja el límite evadible,
+   porque la cabecera la escribiría el cliente.
+4. Recién ahí cambiar `web/.env.production`:
    `NEXT_PUBLIC_API_URL=https://viczul.com`
    **`NEXT_PUBLIC_SOCKET_URL` NO se toca**: el WebSocket de Socket.io sigue
    yendo directo a Render a propósito.
-4. Subir. Si algo sale mal, volver el `.env.production` a Render y ya está.
+5. Subir. Si algo sale mal, volver el `.env.production` a Render y ya está.
 
 ### Lo que se desbloquea recién después del paso 3
 

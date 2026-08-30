@@ -43,12 +43,34 @@ describe('rateLimit', () => {
     expect(pegar(dos, '1.1.1.1').paso).toBe(true);
   });
 
-  test('cf-connecting-ip le gana a req.ip', () => {
-    const mw = rateLimit({ max: 1, ventanaMs: 1000, nombre: 'x' });
-    pegar(mw, '9.9.9.9', { 'cf-connecting-ip': '5.5.5.5' });
-    // misma IP real detras de Cloudflare, aunque el socket cambie
-    expect(pegar(mw, '8.8.8.8', { 'cf-connecting-ip': '5.5.5.5' }).paso).toBe(false);
-    expect(pegar(mw, '9.9.9.9', { 'cf-connecting-ip': '6.6.6.6' }).paso).toBe(true);
+  // Regresion del 2026-08-30: la primera version confiaba en
+  // cf-connecting-ip antes que en req.ip. Mientras la API no pase por
+  // Cloudflare esa cabecera la escribe el cliente, asi que rotarla evadia
+  // el limite por completo — y el que hace fuerza bruta no usa navegador.
+  test('sin Cloudflare, rotar cf-connecting-ip NO evade el limite', () => {
+    const mw = rateLimit({ max: 1, ventanaMs: 5000, nombre: 'spoof' });
+    pegar(mw, '6.6.6.6', { 'cf-connecting-ip': '1.0.0.1' });
+    expect(pegar(mw, '6.6.6.6', { 'cf-connecting-ip': '1.0.0.2' }).paso).toBe(false);
+  });
+
+  test('sin Cloudflare, rotar x-forwarded-for tampoco evade', () => {
+    const mw = rateLimit({ max: 1, ventanaMs: 5000, nombre: 'xff' });
+    pegar(mw, '4.4.4.4', { 'x-forwarded-for': '1.1.1.1' });
+    expect(pegar(mw, '4.4.4.4', { 'x-forwarded-for': '2.2.2.2' }).paso).toBe(false);
+  });
+
+  test('con CONFIAR_EN_CLOUDFLARE=1 si manda cf-connecting-ip', () => {
+    jest.resetModules();
+    process.env.CONFIAR_EN_CLOUDFLARE = '1';
+    const { rateLimit: rl } = require('../src/shared/middleware/rateLimit');
+    const mw = rl({ max: 1, ventanaMs: 5000, nombre: 'cf' });
+    pegar(mw, '7.7.7.7', { 'cf-connecting-ip': '9.9.9.9' });
+    // misma IP real detras de Cloudflare aunque cambie el socket -> bloquea
+    expect(pegar(mw, '8.8.8.8', { 'cf-connecting-ip': '9.9.9.9' }).paso).toBe(false);
+    // IP real distinta -> pasa
+    expect(pegar(mw, '7.7.7.7', { 'cf-connecting-ip': '1.2.3.4' }).paso).toBe(true);
+    delete process.env.CONFIAR_EN_CLOUDFLARE;
+    jest.resetModules();
   });
 
   test('la ventana se libera sola', async () => {
