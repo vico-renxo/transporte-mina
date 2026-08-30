@@ -37,15 +37,39 @@ router.patch('/:id', authMiddleware, requireRol('ADMIN'), async (req, res, next)
   try { res.json(await actualizarRuta(req.params.id, req.body)); } catch (err) { next(err); }
 });
 
-// Supervisor inicia ruta desde panel web: POST /rutas/:id/iniciar
-router.post('/:id/iniciar', authMiddleware, requireRol('ADMIN', 'SUPERVISOR', 'CONDUCTOR'), async (req, res, next) => {
-  try { res.json(await iniciarRuta({ rutaId: req.params.id, ...req.body })); } catch (err) { next(err); }
-});
+// Iniciar una ejecucion de ruta.
+//
+// Hay DOS caminos historicos hacia la misma operacion:
+//   POST /rutas/:id/iniciar  <- el que usa el panel (web/src/lib/api.ts)
+//   POST /rutas/iniciar      <- pensado para la app del conductor; hoy no lo
+//                               llama nadie en este repo.
+//
+// Estaban escritos dos veces, con las mismas roles pero en distinto orden.
+// Mientras sean dos textos separados, nada impide que manana uno sume un rol
+// y el otro no, y que el agujero quede abierto justo en el que no miraste.
+// Ahora la lista de roles y el handler existen UNA sola vez y se montan en
+// los dos paths: divergir se volvio imposible.
+//
+// OJO, un cambio de comportamiento: el handler viejo de /:id/iniciar hacia
+// { rutaId: req.params.id, ...req.body }, con el spread ULTIMO, asi que un
+// rutaId mandado en el body le ganaba al de la URL. Ahora gana la URL, que es
+// lo sensato. Nadie en este repo manda rutaId en el body, pero si algun
+// cliente de afuera lo hacia, para el cambia.
+//
+// El path sin :id se conserva por si algun cliente afuera de este repo lo usa.
+// Si se confirma que no, borrarlo es una linea.
+const ROLES_INICIAR = ['ADMIN', 'SUPERVISOR', 'CONDUCTOR'];
 
-// Conductor inicia su ruta desde la app: POST /rutas/iniciar
-router.post('/iniciar', authMiddleware, requireRol('CONDUCTOR', 'ADMIN', 'SUPERVISOR'), async (req, res, next) => {
-  try { res.json(await iniciarRuta(req.body)); } catch (err) { next(err); }
-});
+const handlerIniciar = async (req, res, next) => {
+  try {
+    // rutaId sale de la URL cuando viene, del body cuando no.
+    const rutaId = req.params.id || req.body.rutaId;
+    res.json(await iniciarRuta({ ...req.body, rutaId }));
+  } catch (err) { next(err); }
+};
+
+router.post('/:id/iniciar', authMiddleware, requireRol(...ROLES_INICIAR), handlerIniciar);
+router.post('/iniciar',     authMiddleware, requireRol(...ROLES_INICIAR), handlerIniciar);
 
 router.post('/:id/finalizar', authMiddleware, requireRol('CONDUCTOR', 'ADMIN', 'SUPERVISOR'), async (req, res, next) => {
   try { res.json(await finalizarRuta(req.params.id)); } catch (err) { next(err); }

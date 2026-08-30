@@ -69,6 +69,11 @@ y les asigna paradero.
 `/api/conductores` y `/api/vehiculos` devuelven un objeto que lo envuelve.
 Cualquier consumidor nuevo tiene que usar `d.conductores || d`.
 
+19. `startOfDay()` estaba copiada en `alertas.service.js` y `pasajeros.service.js`. Unificada en `src/shared/fechas.js`.
+20. `distKm` (Haversine) tenía dos implementaciones con firmas distintas — y con esa cuenta el admin decide qué paradero le queda más cerca a un pasajero. Unificada en `web/src/lib/geo.ts`, una sola firma.
+21. `POST /rutas/:id/iniciar` y `POST /rutas/iniciar` eran dos handlers separados con las mismas roles en distinto orden. Ahora comparten `ROLES_INICIAR` y `handlerIniciar`: divergir se volvió imposible.
+22. `POST /auth/cambiar-password` no validaba nada: aceptaba una contraseña de un carácter. Ahora exige 8 y que sea distinta de la actual, del lado del servidor.
+
 14. **Latente, sin corregir:** el CF Worker no reenvía el body en POST. No molesta porque la app llama a Render directo. Si algún día enrutás por `/api` del Worker, esto explota primero.
 
 ## 6. Cómo se sube código (importante)
@@ -107,7 +112,7 @@ Dos lecciones caras:
 
 ## 7. Guardianes
 
-`guardianes/` — seis scripts Node sin dependencias, cada uno vigila un
+`guardianes/` — siete scripts Node sin dependencias, cada uno vigila un
 accidente real. Se corren con:
 
 ```bash
@@ -133,8 +138,20 @@ el propio pasajero, GPS del conductor en vivo, mapa, reportes.
 Pendientes conocidos:
 - [x] ~~Fix A~~ hecho 2026-08-30: el build de Render ya no migra.
 - [x] ~~Fix B~~ hecho 2026-08-30: consulta movida al service, con caché de 5 min.
-- [ ] Pantalla para cambiar contraseña (el endpoint existe hace rato).
-- [ ] Unificar `startOfDay` y `distKm` duplicadas (ver MAPA_DUPLICADOS.md).
+- [x] ~~Pantalla para cambiar contraseña~~ hecha 2026-08-30: `/transporte/cambiar-password/`, sirve para los 3 roles, con acceso desde el sidebar del admin y el header de conductor y pasajero.
+- [x] ~~Unificar `startOfDay` y `distKm`~~ hecho 2026-08-30: `src/shared/fechas.js` y `web/src/lib/geo.ts`.
+- [ ] **Cargar conductores y vehículos en la base.** Hoy `/api/conductores` y `/api/vehiculos` devuelven vacío, así que ninguna ruta puede iniciarse de verdad (lo destapó correr la simulación en producción).
+- [ ] **Decidir el huso horario de `startOfDay()`.** Devuelve la medianoche del servidor (Render corre en UTC), no la de Lima: el "día" arranca a las 19:00 hora peruana del día anterior. No se cambió junto con la unificación porque mover la ventana 5 horas altera qué registros de `EstadoTurno` matchean, y eso merece su propia prueba. Está explicado en `src/shared/fechas.js`.
+- [ ] Unificar el `Modal` repetido en conductores/rutas/vehículos (🟡 en MAPA_DUPLICADOS.md).
+- [ ] Unificar la carga de Leaflet por CDN (🟡 en MAPA_DUPLICADOS.md).
+
+Salidos de la revisión del 2026-08-30 (ordenados por lo que más duele):
+
+- [ ] **Cambiar la contraseña no invalida las sesiones abiertas en otros dispositivos.** Los JWT duran 7 días y no hay lista de revocación: si a alguien le entraron a la cuenta, cambiar la clave no lo echa. Haría falta versionar el token (un campo en `Usuario` que se incremente y que `authMiddleware` compare).
+- [ ] **No hay rate limiting en ningún endpoint.** `POST /auth/login` y `POST /auth/cambiar-password` se pueden martillar sin límite, y el segundo confirma si la contraseña actual es correcta (400 "Contraseña actual incorrecta"): es un oráculo. `express-rate-limit` en `src/index.js` alcanza.
+- [ ] **`web/next.config.js` tiene `typescript: { ignoreBuildErrors: true }` y `eslint: { ignoreDuringBuilds: true }`.** Un error de tipos no rompe el deploy: se convierte en un bug de runtime silencioso. Se puso para destrabar un deploy; conviene sacarlo y arreglar lo que aparezca.
+- [ ] **No hay `.gitattributes` y el repo mezcla finales de línea.** Los archivos están commiteados con LF y en Windows quedan CRLF; una edición descuidada convierte el archivo entero y produce diffs de cientos de líneas que tapan el cambio real (ya pasó una vez). Contenido sugerido: `* text=auto eol=lf` más `*.bat text eol=crlf`. Aplicarlo renormaliza el repo, así que conviene hacerlo en un commit propio que no toque nada más.
+
 - [ ] Borrar el usuario de prueba "Pedro GPS".
 - [ ] Aprobar el registro pendiente de Victor Renzo.
 

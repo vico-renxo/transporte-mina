@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { startOfDay } = require('../../shared/fechas');
 const { calcularETA, calcularETAMultiples } = require('./google-maps.service');
 const { enviarPush, enviarPushMultiple } = require('./fcm.service');
 const { enviarSMS } = require('./sms.service');
@@ -224,12 +225,6 @@ async function enviarAlertaEmergencia(rutaEjecucionId, mensaje) {
 // -------------------------------------------------------
 // Helpers
 // -------------------------------------------------------
-function startOfDay() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 function horaLlegadaTexto(duracionSegundos) {
   const llegada = new Date(Date.now() + duracionSegundos * 1000);
   return llegada.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });

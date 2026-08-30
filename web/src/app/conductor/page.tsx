@@ -216,6 +216,8 @@ function VistaConductor({ token, usuario }: { token: string; usuario: any }) {
           <span className={`w-1.5 h-1.5 rounded-full ${gpsActivo ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`} />
           {gpsActivo ? 'GPS ON' : 'GPS OFF'}
         </span>
+        <a href="/transporte/cambiar-password/?de=conductor" title="Cambiar contraseña"
+          className="text-slate-500 hover:text-green-400 text-lg px-1 transition-colors">🔑</a>
         <button onClick={cerrarSesion} title="Cerrar sesión"
           className="text-slate-500 hover:text-red-400 text-lg px-1 transition-colors">⏻</button>
       </div>

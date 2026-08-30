@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { getPasajeros, getPendientes, aprobarPasajero, getRutas } from '@/lib/api';
 import { badgeEstado, formatFecha, cn } from '@/lib/utils';
 import { cached, bust, hasCache } from '@/lib/cache';
+import { distKm } from '@/lib/geo';
 
 interface Pasajero {
   id: string;
@@ -23,13 +24,6 @@ interface Pasajero {
 }
 interface ParaderoR { id: string; nombre: string; orden: number; lat: number; lng: number }
 interface Ruta { id: string; nombre: string; paraderos: ParaderoR[] }
-
-function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6371, d2r = (d: number) => d * Math.PI / 180;
-  const dLat = d2r(b.lat - a.lat), dLng = d2r(b.lng - a.lng);
-  const x = Math.sin(dLat/2)**2 + Math.cos(d2r(a.lat)) * Math.cos(d2r(b.lat)) * Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
-}
 
 export default function PasajerosPage() {
   const [pasajeros,  setPasajeros]  = useState<Pasajero[]>([]);

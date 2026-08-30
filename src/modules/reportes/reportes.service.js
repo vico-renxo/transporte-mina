@@ -1,13 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 const ExcelJS = require('exceljs');
 const prisma = new PrismaClient();
+const { startOfDay, endOfDay } = require('../../shared/fechas');
 
 function rangoDia(fecha) {
-  const inicio = new Date(fecha);
-  inicio.setHours(0, 0, 0, 0);
-  const fin = new Date(fecha);
-  fin.setHours(23, 59, 59, 999);
-  return { inicio, fin };
+  return { inicio: startOfDay(fecha), fin: endOfDay(fecha) };
 }
 
 async function reporteDiario(fecha = new Date()) {
@@ -71,11 +68,10 @@ async function reporteDiario(fecha = new Date()) {
 }
 
 async function reporteSemanal(fechaInicio) {
-  const inicio = new Date(fechaInicio);
-  inicio.setHours(0, 0, 0, 0);
-  const fin = new Date(fechaInicio);
-  fin.setDate(fin.getDate() + 6);
-  fin.setHours(23, 59, 59, 999);
+  const inicio = startOfDay(fechaInicio);
+  const ultimoDia = new Date(inicio);
+  ultimoDia.setDate(ultimoDia.getDate() + 6);
+  const fin = endOfDay(ultimoDia);   // el dia 7 entero, hasta las 23:59:59.999
 
   const ejecuciones = await prisma.rutaEjecucion.findMany({
     where: { fecha: { gte: inicio, lte: fin } },

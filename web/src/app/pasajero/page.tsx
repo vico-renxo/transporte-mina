@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { distKm } from '@/lib/geo';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'https://transporte-mina.onrender.com';
 
@@ -21,14 +22,6 @@ interface Perfil {
 }
 
 // ---------- helpers ----------
-function deg2rad(d: number) { return d * Math.PI / 180; }
-function distKm(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371;
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lng2 - lng1);
-  const a = Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
 
 // FIX: manejo de sesión expirada — limpia tokens propios del pasajero y vuelve al login
 function cerrarSesion() {
@@ -258,7 +251,7 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
 
   const { pasajero, ejecucionActiva } = perfil;
   const distancia = busPos && pasajero.paradero?.lat
-    ? distKm(busPos.lat, busPos.lng, pasajero.paradero.lat, pasajero.paradero.lng)
+    ? distKm(busPos, pasajero.paradero)
     : null;
   const etaMin = distancia && busPos?.velocidad
     ? Math.round((distancia / busPos.velocidad) * 60)
@@ -286,6 +279,8 @@ function VistaPasajero({ token, usuario }: { token: string; usuario: any }) {
             <span className={`w-1.5 h-1.5 rounded-full ${ejecucionActiva ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`} />
             {ejecucionActiva ? 'Bus en ruta' : 'Sin servicio activo'}
           </div>
+          <a href="/transporte/cambiar-password/?de=pasajero" title="Cambiar contraseña"
+            className="text-slate-500 hover:text-green-400 text-lg px-1 transition-colors">🔑</a>
           <button onClick={cerrarSesion} title="Cerrar sesión"
             className="text-slate-500 hover:text-red-400 text-lg px-1 transition-colors">⏻</button>
         </div>

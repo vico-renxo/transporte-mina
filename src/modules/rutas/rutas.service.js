@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { startOfDay } = require('../../shared/fechas');
 const { alertasService } = require('../alertas/alertas.service');
 
 async function listarRutas() {
@@ -87,8 +88,7 @@ async function iniciarRuta({ rutaId, conductorId, vehiculoId }) {
   }
 
   // Verificar que no haya una ejecución activa para esta ruta hoy
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  const hoy = startOfDay();
   const activa = await prisma.rutaEjecucion.findFirst({
     where: { rutaId, estado: 'EN_RUTA', fecha: { gte: hoy } }
   });

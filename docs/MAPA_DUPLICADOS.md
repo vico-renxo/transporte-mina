@@ -4,7 +4,10 @@ de 6 líneas idénticas (normalizando espacios) entre archivos distintos.
 
 ## Ranking: qué conviene unificar y qué no
 
-### 🔴 1. Dos puertas para la misma habitación — `iniciarRuta`
+> **Estado al 2026-08-30:** los puntos 1, 2 y 3 están resueltos. Quedan
+> abiertos el 4 (Modal), el 5 (Leaflet) y el 6 (cerrarSesion, opcional).
+
+### ✅ 1. Dos puertas para la misma habitación — `iniciarRuta` — RESUELTO 2026-08-30
 
 `src/modules/rutas/rutas.routes.js`:
 
@@ -18,14 +21,14 @@ mantener iguales. El front solo usa la primera. **Recomendación:** borrar
 `POST /iniciar` (nadie la llama) o dejarla documentada como la de la app del
 conductor. Hoy es una regla escrita dos veces — la familia de bug más cara.
 
-### 🔴 2. `startOfDay()` copiada en dos servicios
+### ✅ 2. `startOfDay()` copiada en dos servicios — RESUELTO 2026-08-30
 
 `alertas.service.js:227` y `pasajeros.service.js:4`. Idénticas hoy. El día que
 una tenga en cuenta el huso horario de Perú y la otra no, los estados del día
 y las alertas van a discrepar sin que nadie lo note. **Recomendación:**
 `src/shared/fechas.js` y que las dos importen de ahí.
 
-### 🟡 3. `distKm` / Haversine — dos implementaciones
+### ✅ 3. `distKm` / Haversine — dos implementaciones — RESUELTO 2026-08-30
 
 - `web/src/app/(app)/pasajeros/page.tsx:27` — `distKm(a, b)` con objetos
 - `web/src/app/pasajero/page.tsx:25` — `distKm(lat1, lng1, lat2, lng2)` + `deg2rad`

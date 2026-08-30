@@ -22,6 +22,14 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await loginApi(email, pass);
+
+      // Limpiar las sesiones de los OTROS roles antes de guardar la nueva.
+      // Este proyecto guarda cada panel en claves distintas, y ninguna se
+      // borraba al entrar con otro usuario: quedaban dos tokens vivos a la vez
+      // y la pantalla de cambiar contrasena elegia el primero que encontraba,
+      // que podia ser el del usuario anterior.
+      ['tm_token', 'tm_user', 'tm_conductor_token', 'tm_conductor_user',
+       'tm_pasajero_token', 'tm_pasajero_user'].forEach(k => localStorage.removeItem(k));
       const rol = data.usuario.rol;
 
       if (['ADMIN', 'SUPERVISOR', 'GERENCIA'].includes(rol)) {

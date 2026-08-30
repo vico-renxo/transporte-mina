@@ -1,11 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-
-function startOfDay() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+const { startOfDay } = require('../../shared/fechas');
 
 // FIX: antes esta lógica vivía en pasajeros.routes.js y creaba un
 // `new PrismaClient()` POR CADA REQUEST → fuga de conexiones con pgBouncer.

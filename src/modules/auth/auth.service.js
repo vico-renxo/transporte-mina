@@ -86,8 +86,31 @@ async function actualizarFcmToken(usuarioId, fcmToken) {
   });
 }
 
+// Largo minimo de una contrasena. Vive aca, del lado del servidor: la
+// pantalla tambien lo valida, pero esa validacion es una comodidad para el
+// usuario, no una defensa — cualquiera puede llamar al endpoint sin pasar
+// por la pantalla.
+const MIN_LARGO_PASSWORD = 8;
+
 async function cambiarPassword(usuarioId, passwordActual, passwordNueva) {
+  if (!passwordActual || !passwordNueva) {
+    throw { status: 400, message: 'Contrasena actual y nueva son requeridas' };
+  }
+  // typeof antes que .length: un JSON con `"passwordNueva": 12345678` (numero,
+  // sin comillas) pasaba los chequeos con undefined y reventaba adentro de
+  // bcrypt con un 500 y stack en los logs.
+  if (typeof passwordActual !== 'string' || typeof passwordNueva !== 'string') {
+    throw { status: 400, message: 'Las contrasenas tienen que ser texto' };
+  }
+  if (passwordNueva.length < MIN_LARGO_PASSWORD) {
+    throw { status: 400, message: `La contrasena nueva necesita al menos ${MIN_LARGO_PASSWORD} caracteres` };
+  }
+  if (passwordNueva === passwordActual) {
+    throw { status: 400, message: 'La contrasena nueva tiene que ser distinta de la actual' };
+  }
+
   const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+  if (!usuario) throw { status: 404, message: 'Usuario no encontrado' };
   const valido = await bcrypt.compare(passwordActual, usuario.password);
   if (!valido) throw { status: 400, message: 'Contraseña actual incorrecta' };
 

@@ -68,6 +68,11 @@ export default function Sidebar() {
             <p className="text-slate-500 text-[10px] truncate">{usuario?.rol}</p>
           </div>
         </div>
+        <Link href="/cambiar-password?de=admin"
+          className="block w-full text-xs text-slate-500 hover:text-green-400 transition-colors text-left px-1 mb-2"
+        >
+          🔑 Cambiar contraseña
+        </Link>
         <button onClick={handleLogout}
           className="w-full text-xs text-slate-500 hover:text-red-400 transition-colors text-left px-1"
         >
