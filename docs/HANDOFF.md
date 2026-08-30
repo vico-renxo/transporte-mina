@@ -60,6 +60,8 @@ y les asigna paradero.
 11. El login no devolvía `conductorId` / `pasajeroId` → el conductor veía la ruta de otro.
 12. `api.ts` llamaba a una ruta inexistente de estados-hoy.
 13. `new PrismaClient()` por request en `pasajeros.routes.js` → fuga de conexiones.
+15. `package.json` corria `prisma migrate deploy` en el build de Render, contra la regla 6. Ahora el build es solo `prisma generate`.
+16. `new PrismaClient()` en `gps.routes.js` (una conexion por request en el endpoint mas caliente del sistema). La consulta se movio a `gps.service.js` como `obtenerInfoEjecucion()`, con cache de 5 min: nombre de ruta, conductor y placa no cambian durante la ejecucion, asi que ya no se consulta la base en cada ping GPS.
 14. **Latente, sin corregir:** el CF Worker no reenvía el body en POST. No molesta porque la app llama a Render directo. Si algún día enrutás por `/api` del Worker, esto explota primero.
 
 ## 6. Cómo se sube código (importante)
@@ -93,14 +95,18 @@ la pantalla. Probá la app igual.
 
 ## 8. Estado actual y pendientes
 
+La ronda 3 **sí llegó a `main`** (commit `c73eb58`): el tarpit de GitHub se
+destrabó solo y la cadena de commits se completó. `docs/RONDA3_ESTADO.md`
+queda solo como registro histórico.
+
 ✅ Funcionando y verificado en producción: login unificado, registro con
 modalidad domicilio/paradero, aprobación con paradero más cercano por
 distancia, edición de asignación por el admin, actualización de ubicación por
 el propio pasajero, GPS del conductor en vivo, mapa, reportes.
 
 Pendientes conocidos:
-- [ ] Fix A: `package.json` → `"build": "prisma generate"` (hoy incluye `migrate deploy`, contra la regla 6).
-- [ ] Fix B: sacar la consulta Prisma de `gps.routes.js` al service, con caché.
+- [x] ~~Fix A~~ hecho 2026-08-30: el build de Render ya no migra.
+- [x] ~~Fix B~~ hecho 2026-08-30: consulta movida al service, con caché de 5 min.
 - [ ] Pantalla para cambiar contraseña (el endpoint existe hace rato).
 - [ ] Unificar `startOfDay` y `distKm` duplicadas (ver MAPA_DUPLICADOS.md).
 - [ ] Borrar el usuario de prueba "Pedro GPS".
@@ -115,3 +121,6 @@ Pendientes conocidos:
 | `MAPA_DUPLICADOS.md` | Qué está escrito dos veces y cuál conviene unificar |
 | `REVISION_GUARDIANES.md` | La auditoría del 2026-08-30 y cómo se probó cada guardián |
 | `CAMBIOS_DETALLADOS.md` | Changelog de la sesión de julio (bugs 11-14) |
+
+Desde 2026-08-30 esta documentación vive en `docs/` dentro del repo, y los
+guardianes en `guardianes/`, corriendo solos en cada push vía GitHub Actions.

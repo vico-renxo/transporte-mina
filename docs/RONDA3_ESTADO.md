@@ -1,5 +1,9 @@
 # RONDA 3 — Modalidad de recojo + edición de domicilio (estado)
 
+> **RESUELTO (2026-08-30).** El commit que acá figura como pendiente sí entró:
+> es `c73eb58` en `main`. Este archivo queda como registro histórico; no hay
+> nada que reintentar.
+
 ## QUÉ ESTÁ LISTO (código escrito y verificado por SHA, en esta carpeta)
 1. **Registro con 2 modalidades** (`web/src/app/registro/page.tsx`):
    🏠 En mi domicilio (GPS o dirección manual) | 🚏 En un paradero (dropdowns de ruta y paradero, cargados del endpoint público nuevo).

@@ -1,7 +1,5 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-const { guardarCoordenada, obtenerUltimaCoordenada, obtenerHistorial } = require('./gps.service');
+const { guardarCoordenada, obtenerUltimaCoordenada, obtenerHistorial, obtenerInfoEjecucion } = require('./gps.service');
 const { authMiddleware, requireRol } = require('../../shared/middleware/auth');
 const router = express.Router();
 
@@ -17,14 +15,7 @@ router.post('/coordenada', authMiddleware, requireRol('CONDUCTOR'), async (req, 
     // Emitir actualización en tiempo real a supervisores
     const { getIo } = require('../../config/socket');
     // Obtener info de la ejecución para el evento
-    const ej = await prisma.rutaEjecucion.findUnique({
-      where: { id: rutaEjecucionId },
-      include: {
-        ruta:      { select: { nombre: true } },
-        conductor: { include: { usuario: { select: { nombre: true } } } },
-        vehiculo:  { select: { placa: true } }
-      }
-    });
+    const ej = await obtenerInfoEjecucion(rutaEjecucionId);
     getIo()?.to('supervisores').emit('supervisor:gps-update', {
       conductorId:     ej?.conductorId || req.usuario.id,
       rutaEjecucionId,
