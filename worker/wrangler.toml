@@ -1,6 +1,15 @@
 # ════════════════════════════════════════════════════════════════
 # Worker que pone la API detras de Cloudflare.
 #
+# VIVE EN worker/ Y NO EN LA RAIZ, y eso NO es cosmetico:
+# Cloudflare Pages lee el wrangler.toml de la raiz del repo y falla el
+# build si encuentra claves de Worker (main, routes), porque espera
+# configuracion de Pages. Con el archivo en la raiz, TODOS los builds de
+# la web quedaron rotos y el sitio se congelo en la version anterior sin
+# que nada avisara. Hay un guardian que lo impide (verificar-wrangler).
+#
+# Desplegar con:  npx wrangler deploy -c worker/wrangler.toml
+#
 # NOMBRE NUEVO A PROPOSITO. Ya existe un Worker llamado
 # "transporte-proxy" en la cuenta (el del BUG 14). Si desplegaramos con
 # ese nombre le pisariamos el codigo, y si tuviera una ruta ancha
@@ -13,7 +22,7 @@
 # ════════════════════════════════════════════════════════════════
 
 name = "transporte-api"
-main = "worker/index.js"
+main = "index.js"
 compatibility_date = "2026-01-01"
 
 # PASO 1 — desplegar aca primero.

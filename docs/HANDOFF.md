@@ -28,6 +28,14 @@ viva Supabase (que se pausa a los 7 días sin uso).
 
 ## 3. Reglas absolutas (romperlas ya rompió la app)
 
+> **Regla 9, agregada el 2026-08-30:** NUNCA dejar un `wrangler.toml` de
+> Worker en la raíz del repo. Cloudflare Pages lo lee al construir la web y
+> falla, porque ahí espera configuración de Pages. El sitio se queda servido
+> con el build anterior **y nada lo avisa**: los commits entran, el CI sigue
+> en verde y la web no cambia. El del Worker vive en `worker/wrangler.toml`.
+> Lo vigila `verificar-wrangler`.
+
+
 1. **NUNCA** enlaces absolutos sin basePath: es `/transporte/login/`, no `/login`.
 2. **NUNCA** hardcodear `localhost:3001`: usar `process.env.NEXT_PUBLIC_API_URL`.
 3. **NUNCA** crear `web/functions/`: CF Pages la toma como Worker y se come el sitio.
@@ -112,7 +120,7 @@ Dos lecciones caras:
 
 ## 7. Guardianes
 
-`guardianes/` — siete scripts Node sin dependencias, cada uno vigila un
+`guardianes/` — ocho scripts Node sin dependencias, cada uno vigila un
 accidente real. Se corren con:
 
 ```bash

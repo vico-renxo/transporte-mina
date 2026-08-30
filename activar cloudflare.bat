@@ -35,7 +35,7 @@ if errorlevel 1 goto :pruebasrojas
 
 echo.
 echo  ---------- 2. Desplegando CON la ruta ----------
-call npx --yes wrangler deploy
+call npx --yes wrangler deploy -c worker\wrangler.toml
 if errorlevel 1 goto :errordeploy
 
 echo.

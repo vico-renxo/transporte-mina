@@ -21,7 +21,7 @@ echo.
 
 where node >nul 2>&1 || goto :nonode
 if not exist "worker\index.js" goto :nowork
-if not exist "wrangler.toml" goto :noconf
+if not exist "worker\wrangler.toml" goto :noconf
 
 echo  ---------- 1. Probando el Worker aca, antes de subirlo ----------
 node worker\probar.mjs
@@ -42,7 +42,7 @@ if errorlevel 1 (
 echo.
 
 echo  ---------- 3. Desplegando ----------
-call npx --yes wrangler deploy
+call npx --yes wrangler deploy -c worker\wrangler.toml
 if errorlevel 1 goto :errordeploy
 
 echo.
@@ -90,7 +90,7 @@ goto :fin
 echo  ERROR: no encuentro worker\index.js. Este archivo va en D:\TransporteMina-app
 goto :fin
 :noconf
-echo  ERROR: no encuentro wrangler.toml.
+echo  ERROR: no encuentro worker\wrangler.toml.
 goto :fin
 
 :fin

@@ -21,6 +21,7 @@ const GUARDIANES = [
   ["export estático",  "verificar-export-estatico.mjs"],
   ["orden de rutas",   "verificar-rutas-express.mjs"],
   ["forma de la API",  "verificar-forma-api.mjs"],
+  ["wrangler",         "verificar-wrangler.mjs"],
 ];
 
 console.log("\n🛡  Guardianes de TransporteMina\n" + "─".repeat(48));
