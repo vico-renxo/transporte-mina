@@ -66,6 +66,25 @@ y les asigna paradero.
 
 ## 6. Cómo se sube código (importante)
 
+**Método actual (desde 2026-08-30): `subir cambios.bat`.**
+Doble clic en `D:\TransporteMina-app\subir cambios.bat`. Hace, en orden:
+
+1. Muestra qué cambió.
+2. Corre los guardianes. **Si alguno está en rojo, corta y no sube nada.**
+3. Pide una descripción y hace el commit.
+4. Si tocaste `prisma/`, avisa que la migración hay que correrla a mano.
+5. `git push origin main`.
+
+Ese push dispara solo: GitHub Actions (guardianes), Render (backend),
+Vercel y Cloudflare Pages (web). Supabase nunca se toca sola.
+
+### Método viejo (ya no hace falta, queda como registro)
+
+Antes no había clon local y el sandbox no alcanzaba GitHub, así que se subía
+con la Git Data API desde el navegador. Lo de abajo aplica sólo si algún día
+volvés a quedarte sin clon:
+
+
 El sandbox donde corre Claude **no alcanza GitHub ni Render**. El método que
 funciona: la **Git Data API de GitHub ejecutada desde el navegador** del
 usuario (crear blobs → tree con `base_tree` → commit → PATCH del ref). Un
