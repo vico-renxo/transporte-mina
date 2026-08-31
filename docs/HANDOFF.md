@@ -168,7 +168,18 @@ Pendientes conocidos:
 - [x] ~~Borrar `NEXT_PUBLIC_API_URL` del dashboard de Cloudflare~~ hecho 2026-08-30: el repo (`web/.env.production`) es ahora la única fuente. Era el caso de "una regla escrita dos veces" que más caro salió hoy.
 - [x] ~~Correr `probar todo.bat`~~ corrido 2026-08-30: guardianes 8/8, worker 22/22, typecheck **0 errores**.
 - [ ] **Los tests de `alertas` y `auth` necesitan un `.env` con `DATABASE_URL`.** El clon no lo trae (está en `.gitignore`, y con razón). Sin él, Prisma no arranca y esos dos suites fallan con 500 en vez de 401. **No es una regresión**: es que el entorno de test no tiene base. Para arreglarlo de verdad hay que mockear Prisma en esos tests, como hace `revocacion.test.js`, o levantar una base de prueba.
-- [ ] **Borrar el Worker viejo `transporte-proxy`** — lo tenés que hacer vos: su código sólo existe en el dashboard y borrarlo es irreversible.
+- [x] ~~Borrar el Worker viejo `transporte-proxy`~~ **NO SE BORRA — la premisa era falsa y peligrosa.**
+  Al ir a borrarlo se vio que tiene DOS rutas:
+  `viczul.com/transporte*` y `viczul.com/api*`.
+  **La primera es la que sirve tu app.** Borrar ese Worker te tumbaba el
+  sitio entero. Todo este documento decía que "la app NO lo usa", y eso era
+  cierto sólo de la parte `/api`.
+  Lo que sí se hizo: sacarle **sólo** la ruta `viczul.com/api*`, que se
+  superponía con la del Worker nuevo `transporte-api` (`viczul.com/api/*`).
+  Dos Workers peleando por el mismo tráfico, y el viejo es el que pierde el
+  body en POST: si la precedencia se hubiera dado vuelta, el login moría sin
+  ninguna pista. Verificado después: la web carga y el login sigue yendo por
+  `viczul.com/api`.
 - [ ] Unificar el `Modal` repetido en conductores/rutas/vehículos (🟡 en MAPA_DUPLICADOS.md).
 - [ ] Unificar la carga de Leaflet por CDN (🟡 en MAPA_DUPLICADOS.md).
 

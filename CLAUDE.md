@@ -74,7 +74,7 @@ Al tocar esa URL: cambiar **los dos**, y despues **volver a construir**
 |---|---|---|
 | `transporte-api` | `viczul.com/api/*` | Proxy de la API a Render. Codigo en `worker/`, se despliega con `npx wrangler deploy -c worker/wrangler.toml`. |
 | `viczul` | `viczul.com/*` | Sirve el resto del dominio. NO tocar. |
-| `transporte-proxy` | — | El viejo, con el BUG 14. Ya no lo usa nadie: se puede borrar. |
+| `transporte-proxy` | `viczul.com/transporte*` | **NO BORRAR: es lo que sirve la app.** Tiene el BUG 14, pero eso solo afectaba a su ruta `/api*`, que se le quitó el 2026-08-30 porque competía con `transporte-api`. Su código vive solo en el dashboard. |
 
 El `wrangler.toml` vive en `worker/`, no en la raiz.
 
