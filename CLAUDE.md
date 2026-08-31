@@ -8,11 +8,21 @@ Sistema de transporte de personal minero. Node.js/Express + Next.js + PostgreSQL
 
 | Capa | Servicio | URL |
 |------|----------|-----|
-| Frontend (panel admin + simulacion) | Vercel | https://transporte-mina.vercel.app |
-| Backend (API + WebSocket) | Render free tier | https://transporte-mina.onrender.com |
+| Frontend (los 3 paneles + simulacion) | Cloudflare Pages | https://viczul.com/transporte |
+| **API (HTTP)** | CF Worker `transporte-api` -> Render | **https://viczul.com/api** |
+| **WebSocket (socket.io)** | Render **directo** | https://transporte-mina.onrender.com |
+| Backend (origen real) | Render free tier | https://transporte-mina.onrender.com |
 | Base de datos | Supabase PostgreSQL | Proyecto ID: midimdsudblhonhhqwlv |
 | Codigo fuente | GitHub | https://github.com/vico-renxo/transporte-mina |
-| Simulacion 3 actores | Vercel (static) | https://transporte-mina.vercel.app/simulacion.html |
+| Simulacion 3 actores | CF Pages (static) | https://viczul.com/transporte/simulacion.html |
+
+> Las URLs de `transporte-mina.vercel.app` que figuraban aca estan MUERTAS (404).
+> Vercel ya no sirve este proyecto: lo sirve Cloudflare Pages.
+
+> **La API y el WebSocket van por caminos distintos, a proposito.** La API pasa
+> por Cloudflare (WAF, rate limiting de borde, analiticas). El WebSocket NO:
+> el Worker enruta solo `/api/*`, asi que socket.io (`/socket.io/`) caeria en
+> la web estatica y daria 404. Ver regla 9 del HANDOFF.
 
 ---
 
@@ -38,11 +48,35 @@ El host es **aws-1** (NO aws-0). Obtener string exacto desde: Supabase Dashboard
 - Instance: Free
 - NO ejecutar prisma migrate en build (no hay DB en build time)
 
-## Vercel — Configuracion
+## Cloudflare Pages — Configuracion (reemplaza a Vercel)
 
-- Root Directory: `web/`
-- Framework: Next.js (auto-detectado)
-- Deploy automatico en cada push a main
+- Proyecto: `transporte-mina`, conectado a `vico-renxo/transporte-mina`
+- Production branch: `main` · Deploy automatico: habilitado
+- Root Directory: `web`
+- Build Command: `npm run build` · Build output: `out`
+- Dominio propio del proyecto: `transporte-mina.pages.dev`
+- viczul.com lo sirve el Worker `viczul` (ruta `viczul.com/*`)
+
+### ⚠️ TRAMPA: la URL de la API esta escrita en DOS lugares
+
+Pages tiene una variable de build `NEXT_PUBLIC_API_URL`, y en Next.js
+`process.env` **pisa** a `web/.env.production`. Cambiar solo el archivo del
+repo no hace nada: el build sale verde, despliega, y la app sigue apuntando
+a donde diga el dashboard. Costo una hora encontrarlo porque todo se ve
+bien: commit correcto, CI verde, build Success, sitio funcionando.
+
+Al tocar esa URL: cambiar **los dos**, y despues **volver a construir**
+(cambiar la variable no redespliega sola: Deployments -> Manage -> Retry).
+
+## Cloudflare Workers
+
+| Worker | Ruta | Para que |
+|---|---|---|
+| `transporte-api` | `viczul.com/api/*` | Proxy de la API a Render. Codigo en `worker/`, se despliega con `npx wrangler deploy -c worker/wrangler.toml`. |
+| `viczul` | `viczul.com/*` | Sirve el resto del dominio. NO tocar. |
+| `transporte-proxy` | — | El viejo, con el BUG 14. Ya no lo usa nadie: se puede borrar. |
+
+El `wrangler.toml` vive en `worker/`, no en la raiz.
 
 ---
 
@@ -88,7 +122,7 @@ Solucion: Agregar 'npx prisma generate' al Build Command en Render
 
 ### E7: CORS bloqueando peticiones del frontend
 Causa: FRONTEND_URL en Render apuntando a URL incorrecta
-Solucion: FRONTEND_URL=https://transporte-mina.vercel.app (sin barra final)
+Solucion: FRONTEND_URL debe incluir https://viczul.com (sin barra final). La URL de Vercel ya no aplica.
 
 ### E8: navigate de Chrome MCP no soporta file:// URLs
 Solucion: Subir archivos HTML a GitHub/Vercel para servirlos desde HTTPS

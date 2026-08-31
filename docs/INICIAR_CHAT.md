@@ -14,7 +14,9 @@ ANTES DE TOCAR NADA, leé estos archivos del repo y confirmame que los leíste:
 - MAPA_FUNCIONES.md   → qué hace cada función
 - MAPA_LLAMADAS.md    → qué pantalla llama a qué endpoint
 - MAPA_DUPLICADOS.md  → qué está escrito dos veces
-- guardianes/         → los chequeos que bloquean la subida
+- guardianes/         → los 8 chequeos que bloquean la subida
+- worker/             → el proxy de Cloudflare que pone la API detrás del WAF
+- CLAUDE.md           → stack, URLs y config de cada servicio
 
 Notas de entorno:
 - Tu sandbox NO alcanza github.com ni Render. Para leer el repo usá

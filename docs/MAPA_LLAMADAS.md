@@ -6,10 +6,21 @@ Quién llama a quién. Generado el 2026-08-30 sobre `main`.
 ```
 Navegador (viczul.com/transporte)
    │
-   ├── CF Worker "transporte-proxy"  ── /api → Render   ⚠️ NO reenvía body en POST (BUG 14)
-   │                                     La app NO lo usa: llama a Render directo.
-   ▼
-https://transporte-mina.onrender.com/api/...
+   ├── HTTP ──►  viczul.com/api/*
+   │                │
+   │                └── CF Worker "transporte-api"  (worker/index.js)
+   │                       reenvía método, cabeceras Y BODY  ·  pasa cf-connecting-ip
+   │                       responde el preflight en el borde  ·  cache-control: no-store
+   │                       lo que no empieza con /api/ pasa de largo al sitio
+   │                          │
+   │                          ▼
+   │                    https://transporte-mina.onrender.com/api/...
+   │
+   └── WebSocket ──►  transporte-mina.onrender.com   (DIRECTO, no pasa por Cloudflare)
+                      El Worker enruta solo /api/*; socket.io pide /socket.io/
+                      y por ese camino daría 404. Ver regla 9 del HANDOFF.
+
+Y en el backend:
    │  helmet → cors → express.json → router del módulo
    │  authMiddleware (JWT) → requireRol(...)
    ▼
@@ -45,6 +56,16 @@ https://transporte-mina.onrender.com/api/...
 | llenar los paraderos | `GET /api/rutas/publicas` | **ninguna** (es a propósito) |
 | crear la cuenta | `POST /api/auth/registro-pasajero` | **ninguna** |
 
+### 🔑 Cambiar contraseña (`/transporte/cambiar-password/?de=...`)
+| Llama a | Endpoint | Auth |
+|---|---|---|
+| cambiar la clave | `POST /api/auth/cambiar-password` | JWT del rol que corresponda |
+
+Sirve a los 3 roles con una sola pantalla. El origen viaja en `?de=` porque
+las 3 sesiones pueden convivir en el mismo navegador; sin eso elegía la
+primera que encontrara y le cambiaba la contraseña al usuario equivocado.
+Se entra desde el sidebar del admin y el header de conductor y pasajero.
+
 ### 🖥️ Panel admin (`lib/api.ts`, 29 funciones)
 `/auth/login` · `/reportes/dashboard|diario|semanal|diario/excel` · `/rutas` (+`/activas`, `/historial`, `/{id}/iniciar`, `/{id}/finalizar`) · `/conductores` · `/vehiculos` · `/pasajeros` (+`/pendientes`, `/{id}/aprobar`, `/estados-hoy/{rutaId}`) · `/checkin/{id}` (+`/resumen`) · `/alertas/emergencia` · `/gps/ultima/{id}`
 
@@ -54,7 +75,7 @@ Existen en el backend, ninguna pantalla los usa. No son bugs; son cosas a medio 
 
 | Endpoint | Qué significa |
 |---|---|
-| `POST /api/auth/cambiar-password` | **Falta la pantalla.** Hoy nadie puede cambiar su contraseña: todos siguen con la que les diste. |
+
 | `POST /api/auth/fcm-token` | Las push de Firebase están en modo DEMO (solo `console.log`). |
 | `GET /api/auth/me` | El front confía en el `usuario` guardado en localStorage. Si cambiás un rol en la base, la sesión vieja no se entera. |
 | `POST /api/checkin/paradero` | Subida por lote (todo un paradero de una). El conductor marca de a uno. |

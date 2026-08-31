@@ -1,5 +1,13 @@
 # TransporteMina — Mejoras propuestas (para revisión)
 
+> **Este documento es de la sesión de julio y ya está aplicado.** Lo del
+> 2026-08-30 está en `HANDOFF.md` (§5 bugs 15-22, §8 pendientes, §8.b cómo se
+> verificó, §8.c Cloudflare) y en `CAMBIOS_DETALLADOS.md`.
+>
+> Dos cosas de acá quedaron obsoletas: «Frontend (CF Pages + Vercel)» —Vercel
+> ya no sirve este proyecto, sus URLs dan 404— y el pendiente de `FRONTEND_URL`,
+> que hay que revisar con `https://viczul.com`, no con la URL de Vercel.
+
 7 archivos modificados. Ninguno toca CF Worker, `_redirects`, `web/functions/` ni nada de viczul.com.
 
 ## Backend (Render — redeploy automático al push)

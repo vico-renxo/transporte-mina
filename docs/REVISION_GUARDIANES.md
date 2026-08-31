@@ -1,5 +1,31 @@
 # REVISIÓN COMPLETA + GUARDIANES — 2026-08-30
 
+> **Actualización de la misma noche.** Lo de abajo describe la revisión de la
+> mañana, con 6 guardianes. Al final del día son **8** y dos afirmaciones de
+> este documento dejaron de ser ciertas:
+>
+> - «El sitio publicado apunta a Render» → ya no: la API va por
+>   `https://viczul.com/api` (Cloudflare). El **WebSocket** sí sigue en Render,
+>   y tiene que seguir así.
+> - «`web/.env.production` correcto» → ese archivo **no manda solo**: Cloudflare
+>   Pages tiene una variable de build con el mismo nombre que lo pisa. Ver
+>   regla 9 del HANDOFF.
+>
+> Guardianes 7 y 8, agregados después de dos accidentes reales de hoy:
+>
+> | # | Guardián | El accidente que ataja |
+> |---|---|---|
+> | 7 | `verificar-forma-api` | La simulación leía `{conductores:[...]}` como si fuera un array. Fallaba **en silencio**: sin excepción, solo datos que faltaban. |
+> | 8 | `verificar-socket` | Al mover la API a Cloudflare, dos pantallas se llevaron el WebSocket con ella (`io(API)`, `io(BASE)`) y el GPS en vivo se congeló sin mostrar ningún error. |
+>
+> Los dos se probaron reintroduciendo el bug a propósito: el corredor corta
+> con exit 1. Un guardián que nunca se vio fallar no está probado.
+>
+> También se **retiró** un guardián (`verificar-wrangler`) que se había
+> agregado esta noche: culpaba al `wrangler.toml` de la raíz de romper los
+> builds de Pages, y eso era **falso** — todos figuran Success en el panel.
+> Un guardián que cuenta una causa equivocada es peor que no tenerlo.
+
 ## 1. Qué revisé
 
 Los **56 archivos de código** del repo `vico-renxo/transporte-mina` en `main`
