@@ -3,6 +3,69 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = new PrismaClient();
 
+// ════════════════════════════════════════════════════════════════
+// REVOCAR SESIONES AL CAMBIAR LA CONTRASENA — sin tocar la base
+//
+// El problema: los JWT duran 7 dias y no habia forma de invalidarlos.
+// Cambiar la contrasena no echaba a una sesion abierta en otro telefono,
+// que es justo el caso 'me entraron a la cuenta'.
+//
+// La solucion obvia era una columna tokenVersion, pero eso obliga a correr
+// una migracion a mano en Supabase (regla 6) y a desplegar en un orden
+// exacto. Se puede sin nada de eso: el hash bcrypt de la contrasena YA
+// cambia cuando la contrasena cambia. Metemos una huella corta de ese hash
+// en el token y la comparamos contra la actual. Cambia la contrasena ->
+// cambia el hash -> todos los tokens viejos dejan de coincidir.
+//
+// Costo: una lectura por usuario cada 60 segundos (no por request: hay
+// cache). Antes authMiddleware no tocaba la base en absoluto.
+//
+// Decision consciente — FALLA ABIERTA: si la consulta a la base falla, el
+// request pasa. Fallar cerrada convertiria cualquier hipo de Supabase en
+// 'nadie puede usar la app'. Para este sistema, un hueco de segundos en la
+// revocacion es mejor que dejar a los conductores sin panel a mitad de ruta.
+// ════════════════════════════════════════════════════════════════
+
+const CACHE_HUELLA_MS = 60 * 1000;
+const cacheHuella = new Map(); // usuarioId -> { huella, expira }
+
+/** Huella corta del hash. No es el hash: no sirve para adivinar nada. */
+function huellaDe(hashPassword) {
+  return String(hashPassword || '').slice(-12);
+}
+
+/** Olvida la huella cacheada de un usuario, para que el cambio pegue ya. */
+function olvidarHuella(usuarioId) {
+  cacheHuella.delete(usuarioId);
+}
+
+/**
+ * true si la huella del token sigue siendo la actual.
+ * Un token sin huella (emitido antes de este cambio) se acepta: si no, el
+ * deploy echaria a todo el mundo de una.
+ */
+async function huellaSigueValida(usuarioId, huellaDelToken) {
+  if (!huellaDelToken) return true;
+
+  const ahora = Date.now();
+  const guardada = cacheHuella.get(usuarioId);
+  if (guardada && guardada.expira > ahora) return guardada.huella === huellaDelToken;
+
+  try {
+    const u = await prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      select: { password: true, activo: true },
+    });
+    if (!u || !u.activo) return false;
+    const actual = huellaDe(u.password);
+    cacheHuella.set(usuarioId, { huella: actual, expira: ahora + CACHE_HUELLA_MS });
+    return actual === huellaDelToken;
+  } catch (err) {
+    console.error('huellaSigueValida: no se pudo leer el usuario, se deja pasar:', err.message);
+    return true; // falla abierta, a proposito (ver arriba)
+  }
+}
+
 async function login(email, password) {
   const usuario = await prisma.usuario.findUnique({
     where: { email },
@@ -22,7 +85,10 @@ async function login(email, password) {
     id: usuario.id,
     rol: usuario.rol,
     nombre: usuario.nombre,
-    email: usuario.email
+    email: usuario.email,
+    // Huella del hash de la contrasena. Si la contrasena cambia, este valor
+    // deja de coincidir y el token muere, aunque le queden dias de vida.
+    pv: huellaDe(usuario.password)
   };
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
@@ -115,7 +181,9 @@ async function cambiarPassword(usuarioId, passwordActual, passwordNueva) {
   if (!valido) throw { status: 400, message: 'Contraseña actual incorrecta' };
 
   const hash = await bcrypt.hash(passwordNueva, 12);
+  // Sin esto, la sesion vieja seguiria valida hasta 60s por el cache.
+  olvidarHuella(usuarioId);
   return prisma.usuario.update({ where: { id: usuarioId }, data: { password: hash } });
 }
 
-module.exports = { login, registrarPasajero, actualizarFcmToken, cambiarPassword };
+module.exports = { login, registrarPasajero, actualizarFcmToken, cambiarPassword, huellaSigueValida, huellaDe, olvidarHuella };

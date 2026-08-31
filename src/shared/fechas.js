@@ -1,38 +1,41 @@
 // ════════════════════════════════════════════════════════════════
 // FECHAS COMPARTIDAS
 //
-// Antes esta funcion estaba copiada en alertas.service.js y en
-// pasajeros.service.js. Identicas, pero nada garantizaba que
-// siguieran siendolo: si una empezaba a considerar el huso de Peru
-// y la otra no, los estados del dia y las alertas iban a discrepar
-// sin que nadie lo notara. Una sola definicion, un solo lugar.
+// Antes estas funciones estaban copiadas en CINCO lugares (alertas,
+// pasajeros, rutas y dos veces en reportes). Una sola definicion.
 // ════════════════════════════════════════════════════════════════
 
-// OJO — HUSO HORARIO. Esto devuelve la medianoche segun el reloj del
-// SERVIDOR, no el de Peru. Render corre en UTC, asi que hoy el "dia"
-// arranca a las 19:00 hora de Lima del dia anterior.
+// ── HUSO HORARIO ──
+// Corregido el 2026-08-30. Antes esto devolvia la medianoche del
+// SERVIDOR: Render corre en UTC, asi que el "dia" arrancaba a las
+// 19:00 hora de Lima del dia anterior.
 //
-// En la practica no molesta porque las rutas arrancan de madrugada y
-// terminan de tarde, bien dentro de la ventana. Pero es una bomba de
-// tiempo: el dia que se consulte "lo de hoy" entre las 19:00 y las
-// 00:00 de Lima, va a contestar con el dia siguiente.
+// Consecuencia real: un viaje de vuelta de la mina a las 19:30 se
+// guardaba con fecha de HOY, pero al consultarlo caia en la ventana
+// de MANANA. El reporte del dia no lo mostraba y el estado del
+// pasajero para ese turno tampoco. Silencioso: nada falla, solo
+// faltan filas.
 //
-// NO se cambio junto con la unificacion a proposito: mover la ventana
-// 5 horas altera que registros de EstadoTurno matchean, y eso es un
-// cambio de comportamiento en produccion que merece su propia decision
-// y su propia prueba. Esta anotado en HANDOFF.md como pendiente.
-/** Medianoche del dia indicado (por defecto, hoy). */
+// Peru (America/Lima) es UTC-5 todo el ano: no tiene horario de
+// verano desde 1994. Por eso alcanza con el offset fijo y no hace
+// falta ninguna dependencia ni Intl.
+const OFFSET_PERU_MS = 5 * 60 * 60 * 1000;
+
+/** Medianoche en Lima del dia indicado (por defecto, hoy), como instante UTC. */
 function startOfDay(fecha = new Date()) {
   const d = new Date(fecha);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  // Corro el reloj a "hora Lima", trunco el dia ahi, y vuelvo a UTC.
+  const enLima = new Date(d.getTime() - OFFSET_PERU_MS);
+  enLima.setUTCHours(0, 0, 0, 0);
+  return new Date(enLima.getTime() + OFFSET_PERU_MS);
 }
 
-/** El ultimo milisegundo del dia indicado (por defecto, hoy). */
+/** El ultimo milisegundo del dia en Lima (por defecto, hoy), como instante UTC. */
 function endOfDay(fecha = new Date()) {
   const d = new Date(fecha);
-  d.setHours(23, 59, 59, 999);
-  return d;
+  const enLima = new Date(d.getTime() - OFFSET_PERU_MS);
+  enLima.setUTCHours(23, 59, 59, 999);
+  return new Date(enLima.getTime() + OFFSET_PERU_MS);
 }
 
-module.exports = { startOfDay, endOfDay };
+module.exports = { startOfDay, endOfDay, OFFSET_PERU_MS };
