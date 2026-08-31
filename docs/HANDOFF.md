@@ -174,11 +174,26 @@ Pendientes conocidos:
 - [x] ~~Decidir el huso horario~~ **hecho 2026-08-30: ahora es medianoche de Lima.** Perú es UTC-5 todo el año (sin horario de verano desde 1994), así que alcanza un offset fijo. El bug que arregla: un viaje de vuelta a las 19:30 de Lima se guardaba con fecha de hoy pero al consultarlo caía en la ventana de mañana — el reporte del día no lo mostraba. Nota vieja: Devuelve la medianoche del servidor (Render corre en UTC), no la de Lima: el "día" arranca a las 19:00 hora peruana del día anterior. No se cambió junto con la unificación porque mover la ventana 5 horas altera qué registros de `EstadoTurno` matchean, y eso merece su propia prueba. Está explicado en `src/shared/fechas.js`.
 - [x] ~~Borrar `NEXT_PUBLIC_API_URL` del dashboard de Cloudflare~~ hecho 2026-08-30: el repo (`web/.env.production`) es ahora la única fuente. Era el caso de "una regla escrita dos veces" que más caro salió hoy.
 - [x] ~~Correr `probar todo.bat`~~ corrido 2026-08-30: guardianes 8/8, worker 22/22, typecheck **0 errores**.
-- [ ] **Los tests de `alertas` y `auth` fallan por el entorno, no por el código.** Son **dos** causas distintas, y conviene no confundirlas (verificado el 2026-08-31):
-  1. **Falta `.env` con `DATABASE_URL`.** El clon no lo trae (está en `.gitignore`, y con razón). Sin él Prisma no arranca.
-  2. **El cliente de Prisma está generado solo para Windows.** `node_modules/.prisma/client/` contiene únicamente `query_engine-windows.dll.node`. Corriendo los tests desde Linux el error ni siquiera menciona `DATABASE_URL`: pide agregar `debian-openssl-3.0.x` a `binaryTargets`. Es el mismo síntoma con dos orígenes según dónde se corra.
+- [x] ~~**Los tests de `alertas` y `auth` fallan por el entorno**~~ **RESUELTO 2026-08-31.**
+  Eran **dos** causas distintas del mismo síntoma, según dónde se corrieran:
+  (1) falta `.env` con `DATABASE_URL` (el clon no lo trae, y con razón: está en `.gitignore`);
+  (2) `node_modules/.prisma/client/` solo contiene `query_engine-windows.dll.node`, así que
+  desde Linux Prisma ni llegaba a mirar la URL y pedía `binaryTargets`.
 
-  **No es una regresión.** Render no sufre esto porque corre `prisma generate` en su propia máquina Linux, y `binaryTargets` sin especificar significa `native`, que allá resuelve a Linux. El arreglo de verdad es mockear Prisma en esos tests, como ya hace `revocacion.test.js`, o levantar una base de prueba; así dejan de depender de dónde se corren.
+  **Arreglo**: `__mocks__/@prisma/client.js`, un `PrismaClient` sobre arrays en memoria con
+  los 11 modelos del schema. Jest lo toma solo, sin que ningún test llame a `jest.mock`,
+  porque `@prisma/client` vive en `node_modules`. `revocacion.test.js` conserva su mock
+  propio: ese gana dentro de su archivo.
+
+  **Verificado con control negativo**, no con "quedó verde": se saboteó `login()` para que
+  dejara de rechazar usuarios inexistentes y `auth.test.js` falló como debía (esperaba 401,
+  recibió 200). Un mock que vuelve verde todo no sirve de nada; este vigila.
+
+  Antes: 3 suites fallando, 4 tests rojos de 19. Ahora: **19/19**.
+
+  **Límite**: el mock no valida el schema ni resuelve `include` anidados. Los tests de
+  `alertas` solo comprueban que "no explota", que es una prueba débil. Para probar queries
+  de verdad hace falta una base de prueba, no un mock más grande.
 - [x] ~~Borrar el Worker viejo `transporte-proxy`~~ **NO SE BORRA — la premisa era falsa y peligrosa.**
   Al ir a borrarlo se vio que tiene DOS rutas:
   `viczul.com/transporte*` y `viczul.com/api*`.

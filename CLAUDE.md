@@ -187,3 +187,19 @@ WebSocket eventos: gps:update | ruta:iniciada | ruta:finalizada | alerta:proximi
 - CORS: backend acepta origen de FRONTEND_URL. Para dev local agregar http://localhost:3000.
 - Claude-in-Chrome MCP: browsers son tier 'read'. Usar mcp__Claude_in_Chrome__* para interaccion.
 - Monaco editor (Supabase): window.monaco.editor.getEditors()[0].getModel().setValue(sql)
+
+## Tests
+
+    npx jest              # los 5 suites, 19 pruebas
+    node worker/probar.mjs    # 22 casos del Worker, sin desplegar nada
+    node guardianes/guardianes.mjs
+
+No hace falta base de datos ni .env: `__mocks__/@prisma/client.js` reemplaza a
+PrismaClient con arrays en memoria, y jest lo toma solo por estar en __mocks__
+junto a node_modules. Antes los suites auth/health/alertas fallaban por el
+entorno (falta DATABASE_URL en Windows; engine solo-Windows si se corre desde
+Linux), no por el codigo.
+
+Ese mock NO valida el schema ni resuelve include anidados. Sirve para probar la
+logica alrededor de la consulta, no la consulta. Si algun dia hacen falta
+queries de verdad, es una base de prueba, no un mock mas grande.
