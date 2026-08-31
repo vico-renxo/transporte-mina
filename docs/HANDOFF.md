@@ -64,11 +64,24 @@ Los guardianes (§7) vigilan las reglas 1, 2, 3, 6 y 8 automáticamente.
 
 ## 4. Credenciales demo
 
+> ⚠️ **RIESGO ABIERTO (2026-08-31): estas credenciales están publicadas.**
+> `prisma/seed.js` está versionado en un repo **público** y contiene las
+> contraseñas en texto plano. `https://viczul.com/transporte/login/` es
+> alcanzable desde cualquier parte de internet. Si ese seed se corrió alguna
+> vez contra la base de producción, **cualquiera que encuentre el repo entra
+> como ADMIN**. Ver §4.b.
+
 | Rol | Email | Password |
 |---|---|---|
-| Admin/supervisor | admin@empresa.com | admin123 |
-| Conductor | conductor@empresa.com | admin123 |
-| Pasajero | pasajero@empresa.com | admin123 |
+| Admin | admin@empresa.com | admin123 |
+| Supervisor | supervisor@empresa.com | super123 |
+| Conductor | conductor1@empresa.com | cond123 |
+| Pasajero | pasajero1@empresa.com | pas123 |
+| Pasajero | pasajero2@empresa.com | pas123 |
+
+Esta tabla decía antes `conductor@empresa.com` y `pasajero@empresa.com`, las dos
+con `admin123`. **No coincidía con `prisma/seed.js`**, que es quien las crea.
+Corregido contra el código el 2026-08-31.
 
 Un solo formulario de login para los tres: enruta por el campo `rol` que
 devuelve el backend. Los pasajeros nuevos se registran solos en
@@ -76,6 +89,41 @@ devuelve el backend. Los pasajeros nuevos se registran solos en
 y les asigna paradero.
 
 ⚠️ No existe pantalla para cambiar contraseña (el endpoint sí existe).
+
+## 4.b Usuarios de prueba (crear y purgar)
+
+Para simular con gente de verdad en la base, sin ensuciarla para siempre:
+
+    node prisma/seed-pruebas.js            # 12 pasajeros y 4 conductores
+    node prisma/seed-pruebas.js 30 4       # 30 pasajeros y 4 conductores
+
+    node prisma/purgar-pruebas.js          # muestra qué borraría, NO borra
+    node prisma/purgar-pruebas.js --borrar # borra de verdad
+
+Necesitan `DATABASE_URL` en el entorno o en un `.env` en la raíz. Se saca del
+panel de Render (variables de entorno del servicio) o de Supabase. **Ese `.env`
+no se versiona nunca.**
+
+Tres cosas que hacen que esto sea seguro, y conviene no deshacerlas:
+
+1. **Marca exacta, no un `LIKE`.** Todo lo creado lleva el prefijo
+   `zz-prueba-` y el dominio `@prueba.local` (dominio reservado, no existe).
+   El purgador exige **las dos cosas**. Un `LIKE '%prueba%'` habría borrado a
+   un usuario real llamado `juan.prueba@gmail.com`; hay un test que lo
+   demuestra (`tests/purga.test.js`, 11 casos).
+2. **Contraseñas al azar en cada corrida**, nunca escritas en el código. El
+   repo es público: una contraseña en un archivo versionado queda publicada
+   para siempre. Se guardan en `credenciales-prueba.local.txt`, ignorado por
+   git.
+3. **El purgador arranca en simulacro.** Muestra la lista y se detiene. Hay
+   que pasarle `--borrar` a propósito.
+
+**Orden de borrado**: el schema **no tiene `onDelete: Cascade` en ninguna
+relación**. Borrar un `Usuario` con checkins lo rechaza Postgres por clave
+foránea. Por eso el purgador va de las hojas a la raíz: coordenadas →
+calificaciones → checkins → estados de turno → ejecuciones → pasajero /
+conductor → usuario. Y por eso mismo la app **da de baja** pasajeros en vez de
+borrarlos (`cambiarActivoPasajero`).
 
 ## 5. Bugs históricos ya corregidos
 
