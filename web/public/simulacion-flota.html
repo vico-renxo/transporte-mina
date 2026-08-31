@@ -1,0 +1,373 @@
+<title>Despacho de Flota</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#131a21; --surface:#1a232c; --surface-2:#212c37; --line:#2c3843;
+  --ink:#e4eaf0; --ink-muted:#8ca0b0; --ink-faint:#5d7080;
+  --amber:#e8a33d; --amber-dim:#8a6224;
+  --espera:#4ea8de; --medios:#b48ead; --ausente:#c46b6b; --abordo:#6bbf8a;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --ground:#eef1f4; --surface:#ffffff; --surface-2:#f5f7f9; --line:#d6dee5;
+    --ink:#1b242c; --ink-muted:#5a6b79; --ink-faint:#8496a4;
+    --amber:#b87715; --amber-dim:#e3c58f;
+    --espera:#1f6fa8; --medios:#7d5f96; --ausente:#a63f3f; --abordo:#2f7d52;
+    --shadow:0 1px 0 rgba(0,0,0,.02), 0 8px 24px rgba(20,35,50,.10);
+  }
+}
+:root[data-theme="light"]{
+  --ground:#eef1f4; --surface:#ffffff; --surface-2:#f5f7f9; --line:#d6dee5;
+  --ink:#1b242c; --ink-muted:#5a6b79; --ink-faint:#8496a4;
+  --amber:#b87715; --amber-dim:#e3c58f;
+  --espera:#1f6fa8; --medios:#7d5f96; --ausente:#a63f3f; --abordo:#2f7d52;
+  --shadow:0 1px 0 rgba(0,0,0,.02), 0 8px 24px rgba(20,35,50,.10);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:'Barlow Semi Condensed',system-ui,-apple-system,sans-serif;
+  font-size:15px; line-height:1.45;
+}
+.tabular{font-variant-numeric:tabular-nums}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+
+/* ── marco ── */
+.marco{max-width:1180px;margin:0 auto;padding:18px 18px 34px;display:flex;flex-direction:column;gap:14px}
+
+header.top{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px}
+.titulo{display:flex;flex-direction:column;gap:1px}
+.titulo h1{margin:0;font-size:27px;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+.titulo .sub{color:var(--ink-faint);font-size:12.5px;letter-spacing:.13em;text-transform:uppercase}
+.reloj{margin-left:auto;text-align:right}
+.reloj .h{font-size:25px;font-weight:600;letter-spacing:.02em}
+.reloj .l{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint)}
+
+/* ── controles ── */
+.controles{display:flex;gap:9px;align-items:center;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+button{font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;
+  border-radius:7px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);
+  padding:7px 15px;transition:background .15s,border-color .15s,color .15s}
+button:hover:not(:disabled){border-color:var(--amber);color:var(--amber)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primario{background:var(--amber);border-color:var(--amber);color:#17202a}
+button.primario:hover:not(:disabled){filter:brightness(1.1);color:#17202a}
+button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.campo{display:flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-faint)}
+select{font-family:inherit;font-size:14px;background:var(--surface-2);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;padding:6px 9px;text-transform:none;letter-spacing:0}
+select:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+.sep{width:1px;height:24px;background:var(--line)}
+
+/* ── indicadores ── */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:9px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:11px 13px;
+  display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--tono,var(--line))}
+.kpi .n{font-size:27px;font-weight:600;letter-spacing:-.02em;line-height:1.05;color:var(--tono,var(--ink))}
+.kpi .e{font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-faint)}
+
+/* ── cuerpo ── */
+.cuerpo{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:14px}
+@media(max-width:860px){.cuerpo{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.panel > h2{margin:0;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+  padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.panel > h2 .cont{margin-left:auto;color:var(--ink-muted);font-size:12px}
+
+svg.mapa{display:block;width:100%;height:auto;background:var(--surface)}
+
+/* ── unidades ── */
+.unidades{display:flex;flex-direction:column;gap:1px;background:var(--line)}
+.unidad{background:var(--surface);padding:11px 14px;display:flex;flex-direction:column;gap:7px}
+.uh{display:flex;align-items:baseline;gap:9px}
+.uid{font-size:14px;font-weight:700;letter-spacing:.04em}
+.upunto{width:8px;height:8px;border-radius:50%;flex:none;align-self:center}
+.uest{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint)}
+.ucap{margin-left:auto;font-size:13px;color:var(--ink-muted)}
+.ucap b{color:var(--ink);font-weight:600}
+.barra{height:7px;border-radius:4px;background:var(--surface-2);overflow:hidden;display:flex}
+.barra i{display:block;height:100%;transition:width .45s cubic-bezier(.4,0,.2,1)}
+.udesc{font-size:12.5px;color:var(--ink-faint)}
+
+/* ── pasajeros ── */
+.grilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(30px,1fr));gap:4px;padding:12px 14px}
+.p{aspect-ratio:1;border-radius:5px;display:grid;place-items:center;font-size:10.5px;font-weight:600;
+  border:1px solid transparent;transition:transform .2s,background .3s,border-color .3s;cursor:default}
+.p.pulso{animation:pop .5s ease}
+@keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.28)}100%{transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.p.pulso{animation:none}.barra i{transition:none}}
+
+.leyenda{display:flex;gap:13px;flex-wrap:wrap;padding:0 14px 12px;font-size:12px;color:var(--ink-muted)}
+.leyenda span{display:flex;align-items:center;gap:5px}
+.leyenda i{width:9px;height:9px;border-radius:3px;display:block}
+
+/* ── bitacora ── */
+.log{height:172px;overflow-y:auto;padding:9px 14px;display:flex;flex-direction:column;gap:2px;
+  font-size:12.5px;scrollbar-width:thin}
+.log div{display:flex;gap:9px;padding:1.5px 0;color:var(--ink-muted)}
+.log time{color:var(--ink-faint);flex:none}
+.log b{color:var(--ink);font-weight:600}
+.pie{color:var(--ink-faint);font-size:12.5px;text-align:center;padding-top:2px;line-height:1.6}
+</style>
+
+<div class="marco">
+  <header class="top">
+    <div class="titulo">
+      <h1>Despacho de flota</h1>
+      <div class="sub">Ruta 1 · Mina Central → Arequipa</div>
+    </div>
+    <div class="reloj">
+      <div class="h mono tabular" id="reloj">05:50</div>
+      <div class="l" id="fase">en espera</div>
+    </div>
+  </header>
+
+  <div class="controles">
+    <button class="primario" id="btn-play">▶ Iniciar turno</button>
+    <button id="btn-reset">Reiniciar</button>
+    <div class="sep"></div>
+    <label class="campo">Pasajeros
+      <select id="sel-pas"><option>10</option><option>20</option><option selected>30</option><option>48</option></select>
+    </label>
+    <label class="campo">Velocidad
+      <select id="sel-vel"><option value="900">1×</option><option value="450" selected>2×</option><option value="200">5×</option></select>
+    </label>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="cuerpo">
+    <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+      <section class="panel">
+        <h2>Recorrido <span class="cont" id="cont-mapa"></span></h2>
+        <svg class="mapa" id="mapa" viewBox="0 0 620 400" role="img" aria-label="Diagrama del recorrido con las cuatro unidades"></svg>
+      </section>
+      <section class="panel">
+        <h2>Bitácora</h2>
+        <div class="log" id="log"></div>
+      </section>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+      <section class="panel">
+        <h2>Unidades <span class="cont" id="cont-uni"></span></h2>
+        <div class="unidades" id="unidades"></div>
+      </section>
+      <section class="panel">
+        <h2>Pasajeros <span class="cont" id="cont-pas"></span></h2>
+        <div class="grilla" id="grilla"></div>
+        <div class="leyenda">
+          <span><i style="background:var(--ink-faint)"></i>sin declarar</span>
+          <span><i style="background:var(--espera)"></i>en el paradero</span>
+          <span><i style="background:var(--medios)"></i>por sus medios</span>
+          <span><i style="background:var(--ausente)"></i>ausente</span>
+          <span><i style="background:var(--abordo)"></i>a bordo</span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <p class="pie">
+    Simulación. Coordenadas y paraderos reales de la Ruta 1; los pasajeros y sus decisiones son generados.<br>
+    No escribe en la base de datos ni toca el sistema en producción.
+  </p>
+</div>
+
+<script>
+// ── Paraderos reales de la Ruta 1 (mismas coordenadas que usa simulacion.html)
+const PARADEROS = [
+  { n:'Mina Central',       lat:-16.4090, lng:-71.5375 },
+  { n:'Variante Uchumayo',  lat:-16.4200, lng:-71.5700 },
+  { n:'Sachaca',            lat:-16.4300, lng:-71.5550 },
+  { n:'Hunter',             lat:-16.4250, lng:-71.5400 },
+  { n:'Plaza de Armas',     lat:-16.3989, lng:-71.5350 },
+];
+const CAPACIDAD = 16;
+const NOMBRES = ['Ana','Luis','Rosa','Marco','Elena','Jorge','Nilda','Cesar','Ruth','Pablo','Sonia','Hugo',
+  'Delia','Raul','Marta','Percy','Yola','Edwin','Gloria','Fidel','Rocio','Wilber','Norma','Aldo',
+  'Lucia','Efrain','Betty','Nestor','Irma','Vidal','Carmen','Tito','Julia','Abel','Flor','Ivan',
+  'Nelly','Saul','Rita','Elmer','Zoila','Braulio','Olga','Ciro','Vilma','Genaro','Teresa','Lucho'];
+
+// ── Proyección de lat/lng al viewBox
+const M = { x0:52, y0:44, x1:568, y1:340 };
+const latMin = Math.min(...PARADEROS.map(p=>p.lat)), latMax = Math.max(...PARADEROS.map(p=>p.lat));
+const lngMin = Math.min(...PARADEROS.map(p=>p.lng)), lngMax = Math.max(...PARADEROS.map(p=>p.lng));
+const proy = p => ({
+  x: M.x0 + (p.lng - lngMin) / (lngMax - lngMin) * (M.x1 - M.x0),
+  y: M.y1 - (p.lat - latMin) / (latMax - latMin) * (M.y1 - M.y0),
+});
+const PT = PARADEROS.map(proy);
+
+const TRAMOS = 14;                 // pasos por tramo entre paraderos
+const TOTAL  = (PARADEROS.length - 1) * TRAMOS;
+const posEnRuta = t => {           // t de 0 a TOTAL
+  const i = Math.min(Math.floor(t / TRAMOS), PARADEROS.length - 2);
+  const f = (t - i * TRAMOS) / TRAMOS;
+  return { x: PT[i].x + (PT[i+1].x - PT[i].x) * f, y: PT[i].y + (PT[i+1].y - PT[i].y) * f };
+};
+
+const COLOR = { pendiente:'--ink-faint', espera:'--espera', medios:'--medios', ausente:'--ausente', abordo:'--abordo' };
+const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+let estado = null, timer = null, corriendo = false;
+const $ = id => document.getElementById(id);
+
+function crear(nPas) {
+  const unidades = [0,1,2,3].map(i => ({
+    id:'V-0'+(i+1), t: -i*Math.round(TRAMOS*0.85), abordo:0, estado:'en cochera', paradero:-1
+  }));
+  const pasajeros = Array.from({length:nPas}, (_,i) => ({
+    i, nombre: NOMBRES[i % NOMBRES.length],
+    unidad: i % 4,                                            // reparto parejo entre las 4 unidades
+    paradero: 1 + (Math.floor(i/4) % (PARADEROS.length - 2)), // suben en paraderos intermedios
+    estado: 'pendiente',
+  }));
+  return { unidades, pasajeros, min: 5*60+50, eventos:[], terminado:false };
+}
+
+function log(txt, quien) {
+  const h = String(Math.floor(estado.min/60)).padStart(2,'0')+':'+String(estado.min%60).padStart(2,'0');
+  estado.eventos.unshift({ h, txt, quien });
+  if (estado.eventos.length > 90) estado.eventos.pop();
+}
+
+// ── Un paso de reloj
+function paso() {
+  estado.min += 2;
+
+  // Los pasajeros declaran su intención antes de que llegue su unidad
+  estado.pasajeros.forEach(p => {
+    if (p.estado !== 'pendiente') return;
+    const u = estado.unidades[p.unidad];
+    const faltan = (p.paradero * TRAMOS) - u.t;
+    if (faltan > TRAMOS * 1.6 || faltan < 0) return;
+    if (Math.random() > 0.34) return;
+    const r = Math.random();
+    p.estado = r < 0.72 ? 'espera' : r < 0.90 ? 'medios' : 'ausente';
+    p.pulso = true;
+    const dice = { espera:'está en el paradero', medios:'se va por sus medios', ausente:'no viaja hoy' }[p.estado];
+    log(dice + ' · ' + PARADEROS[p.paradero].n, p.nombre);
+  });
+
+  // Las unidades avanzan
+  estado.unidades.forEach(u => {
+    if (u.t >= TOTAL) { u.estado = 'turno cerrado'; return; }
+    u.t++;
+    if (u.t < 0) return;
+    if (u.t === 0) { u.estado = 'en ruta'; log('sale de Mina Central', u.id); }
+
+    if (u.t % TRAMOS === 0 && u.t > 0) {
+      const idx = u.t / TRAMOS;
+      u.paradero = idx;
+      const suben = estado.pasajeros.filter(p => p.unidad === estado.unidades.indexOf(u) && p.paradero === idx && p.estado === 'espera');
+      let n = 0;
+      suben.forEach(p => {
+        if (u.abordo >= CAPACIDAD) { p.estado = 'ausente'; log('unidad llena, no pudo subir', p.nombre); return; }
+        p.estado = 'abordo'; p.pulso = true; u.abordo++; n++;
+      });
+      const nom = PARADEROS[idx].n;
+      u.estado = idx === PARADEROS.length-1 ? 'turno cerrado' : 'en ruta';
+      log(idx === PARADEROS.length-1
+        ? 'llega a ' + nom + ' · ' + u.abordo + ' pasajeros entregados'
+        : 'para en ' + nom + ' · suben ' + n, u.id);
+    }
+  });
+
+  if (estado.unidades.every(u => u.t >= TOTAL)) {
+    estado.terminado = true; pausar(); $('fase').textContent = 'turno completo';
+  }
+  pintar();
+}
+
+// ── Pintado
+function pintar() {
+  const P = estado.pasajeros, U = estado.unidades;
+  const cuenta = e => P.filter(p => p.estado === e).length;
+
+  $('reloj').textContent = String(Math.floor(estado.min/60)).padStart(2,'0')+':'+String(estado.min%60).padStart(2,'0');
+
+  $('kpis').innerHTML = [
+    ['a bordo', cuenta('abordo'), '--abordo'],
+    ['esperando', cuenta('espera'), '--espera'],
+    ['por sus medios', cuenta('medios'), '--medios'],
+    ['no viajan', cuenta('ausente'), '--ausente'],
+    ['sin declarar', cuenta('pendiente'), '--ink-faint'],
+    ['plazas libres', U.reduce((a,u)=>a+(CAPACIDAD-u.abordo),0), '--amber'],
+  ].map(([e,n,c]) => `<div class="kpi" style="--tono:var(${c})"><span class="n tabular">${n}</span><span class="e">${e}</span></div>`).join('');
+
+  // Mapa
+  const tonos = ['--amber','--espera','--medios','--abordo'];
+  let svg = '';
+  for (let i=0;i<PT.length-1;i++)
+    svg += `<line x1="${PT[i].x}" y1="${PT[i].y}" x2="${PT[i+1].x}" y2="${PT[i+1].y}" stroke="${cssVar('--line')}" stroke-width="2.5" stroke-linecap="round"/>`;
+  PT.forEach((pt,i) => {
+    const esperan = P.filter(p => p.paradero===i && p.estado==='espera').length;
+    svg += `<circle cx="${pt.x}" cy="${pt.y}" r="${esperan?9:6}" fill="${esperan?cssVar('--espera'):cssVar('--surface')}" stroke="${cssVar('--ink-faint')}" stroke-width="2"/>`;
+    if (esperan) svg += `<text x="${pt.x}" y="${pt.y+3.5}" text-anchor="middle" font-size="9.5" font-weight="700" fill="${cssVar('--ground')}" font-family="IBM Plex Mono, monospace">${esperan}</text>`;
+    const arriba = i===4||i===0;
+    svg += `<text x="${pt.x}" y="${pt.y + (arriba?-16:24)}" text-anchor="middle" font-size="12.5" fill="${cssVar('--ink-muted')}" font-family="Barlow Semi Condensed, sans-serif">${PARADEROS[i].n}</text>`;
+  });
+  U.forEach((u,i) => {
+    if (u.t < 0) return;
+    const q = posEnRuta(Math.min(u.t, TOTAL)), c = cssVar(tonos[i]);
+    svg += `<g><rect x="${q.x-13}" y="${q.y-9}" width="26" height="18" rx="4.5" fill="${c}" stroke="${cssVar('--ground')}" stroke-width="1.5"/>`;
+    svg += `<text x="${q.x}" y="${q.y+4}" text-anchor="middle" font-size="10" font-weight="700" fill="${cssVar('--ground')}" font-family="IBM Plex Mono, monospace">${u.abordo}</text></g>`;
+  });
+  $('mapa').innerHTML = svg;
+  $('cont-mapa').textContent = PARADEROS.length + ' paraderos';
+
+  // Unidades
+  $('unidades').innerHTML = U.map((u,i) => {
+    const c = `var(${tonos[i]})`, pct = (u.abordo/CAPACIDAD*100).toFixed(1);
+    const donde = u.t < 0 ? 'sale en ' + Math.abs(u.t) + ' min'
+                : u.t >= TOTAL ? 'ruta completada'
+                : 'rumbo a ' + PARADEROS[Math.min(Math.floor(u.t/TRAMOS)+1, PARADEROS.length-1)].n;
+    return `<div class="unidad">
+      <div class="uh"><span class="upunto" style="background:${c}"></span>
+        <span class="uid mono">${u.id}</span><span class="uest">${u.estado}</span>
+        <span class="ucap tabular"><b>${u.abordo}</b>/${CAPACIDAD}</span></div>
+      <div class="barra"><i style="width:${pct}%;background:${c}"></i></div>
+      <div class="udesc">${donde}</div></div>`;
+  }).join('');
+  $('cont-uni').textContent = U.length + ' × ' + CAPACIDAD + ' plazas';
+
+  // Pasajeros
+  $('grilla').innerHTML = P.map(p => {
+    const c = cssVar(COLOR[p.estado]);
+    const oscuro = p.estado==='pendiente';
+    return `<div class="p${p.pulso?' pulso':''}" title="${p.nombre} · ${PARADEROS[p.paradero].n} · ${p.estado}"
+      style="background:${oscuro?'transparent':c};border-color:${c};color:${oscuro?c:cssVar('--ground')}">${p.nombre.slice(0,2)}</div>`;
+  }).join('');
+  P.forEach(p => p.pulso = false);
+  $('cont-pas').textContent = P.length + ' registrados';
+
+  $('log').innerHTML = estado.eventos.map(e =>
+    `<div><time class="mono">${e.h}</time><span><b>${e.quien}</b> ${e.txt}</span></div>`).join('');
+}
+
+// ── Controles
+function arrancar() {
+  if (estado.terminado) reiniciar();
+  corriendo = true; $('btn-play').textContent = '⏸ Pausar'; $('fase').textContent = 'turno en curso';
+  clearInterval(timer); timer = setInterval(paso, +$('sel-vel').value);
+}
+function pausar() {
+  corriendo = false; clearInterval(timer); $('btn-play').textContent = '▶ Reanudar';
+  if (estado && !estado.terminado) $('fase').textContent = 'en pausa';
+}
+function reiniciar() {
+  pausar(); estado = crear(+$('sel-pas').value);
+  $('btn-play').textContent = '▶ Iniciar turno'; $('fase').textContent = 'en espera'; pintar();
+}
+$('btn-play').onclick = () => corriendo ? pausar() : arrancar();
+$('btn-reset').onclick = reiniciar;
+$('sel-pas').onchange = reiniciar;
+$('sel-vel').onchange = () => { if (corriendo) arrancar(); };
+reiniciar();
+</script>
