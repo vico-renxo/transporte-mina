@@ -16,11 +16,11 @@ Tres paneles sobre una sola app: **supervisor/admin**, **conductor**,
 | Pieza | Dónde | Detalle |
 |---|---|---|
 | Código | GitHub `vico-renxo/transporte-mina`, rama `main` | público |
-| Web | Cloudflare Pages + Vercel | Next.js 14, `output: 'export'`, `basePath: '/transporte'` |
+| Web | Cloudflare Pages (Vercel ya no participa: sus URLs dan 404) | Next.js 14, `output: 'export'`, `basePath: '/transporte'` |
 | URL pública | https://viczul.com/transporte | entra por `/transporte/login/` |
 | Backend | Render (free) `transporte-mina.onrender.com` | Express + Socket.io + Prisma; servicio `srv-d8soacr6sc1c7393ke60` |
 | Base | Supabase proyecto `midimdsudblhonhhqwlv` | PostgreSQL, pooler `aws-1-sa-east-1` puerto **6543** |
-| Proxy | CF Worker **`transporte-api`** (repo: `worker/`, `wrangler.toml`) | Ruta `viczul.com/api/*` → Render. **La app SÍ lo usa** desde el 2026-08-30. El viejo `transporte-proxy` quedó sin uso: se puede borrar. |
+| Proxy | CF Worker **`transporte-api`** (repo: `worker/`, `wrangler.toml`) | Ruta `viczul.com/api/*` → Render. **La app SÍ lo usa** desde el 2026-08-30. El viejo `transporte-proxy` **NO SE BORRA**: tiene la ruta `viczul.com/transporte*`, que es la que sirve la app. Ver §8. |
 
 **Render duerme a los 15 min sin tráfico**: el primer request tarda ~1 minuto.
 Hay una tarea programada que la despierta cada mañana 5:50 y de paso mantiene
@@ -118,7 +118,7 @@ Doble clic en `D:\TransporteMina-app\subir cambios.bat`. Hace, en orden:
 5. `git push origin main`.
 
 Ese push dispara solo: GitHub Actions (guardianes), Render (backend),
-Vercel y Cloudflare Pages (web). Supabase nunca se toca sola.
+Cloudflare Pages (web). Supabase nunca se toca sola.
 
 ### Método viejo (ya no hace falta, queda como registro)
 
@@ -130,7 +130,7 @@ volvés a quedarte sin clon:
 El sandbox donde corre Claude **no alcanza GitHub ni Render**. El método que
 funciona: la **Git Data API de GitHub ejecutada desde el navegador** del
 usuario (crear blobs → tree con `base_tree` → commit → PATCH del ref). Un
-commit = un build en Render + Vercel + CF Pages.
+commit = un build en Render + CF Pages.
 
 Dos lecciones caras:
 - **Verificar siempre** `git hash-object <archivo>` contra el SHA del blob que
@@ -174,7 +174,11 @@ Pendientes conocidos:
 - [x] ~~Decidir el huso horario~~ **hecho 2026-08-30: ahora es medianoche de Lima.** Perú es UTC-5 todo el año (sin horario de verano desde 1994), así que alcanza un offset fijo. El bug que arregla: un viaje de vuelta a las 19:30 de Lima se guardaba con fecha de hoy pero al consultarlo caía en la ventana de mañana — el reporte del día no lo mostraba. Nota vieja: Devuelve la medianoche del servidor (Render corre en UTC), no la de Lima: el "día" arranca a las 19:00 hora peruana del día anterior. No se cambió junto con la unificación porque mover la ventana 5 horas altera qué registros de `EstadoTurno` matchean, y eso merece su propia prueba. Está explicado en `src/shared/fechas.js`.
 - [x] ~~Borrar `NEXT_PUBLIC_API_URL` del dashboard de Cloudflare~~ hecho 2026-08-30: el repo (`web/.env.production`) es ahora la única fuente. Era el caso de "una regla escrita dos veces" que más caro salió hoy.
 - [x] ~~Correr `probar todo.bat`~~ corrido 2026-08-30: guardianes 8/8, worker 22/22, typecheck **0 errores**.
-- [ ] **Los tests de `alertas` y `auth` necesitan un `.env` con `DATABASE_URL`.** El clon no lo trae (está en `.gitignore`, y con razón). Sin él, Prisma no arranca y esos dos suites fallan con 500 en vez de 401. **No es una regresión**: es que el entorno de test no tiene base. Para arreglarlo de verdad hay que mockear Prisma en esos tests, como hace `revocacion.test.js`, o levantar una base de prueba.
+- [ ] **Los tests de `alertas` y `auth` fallan por el entorno, no por el código.** Son **dos** causas distintas, y conviene no confundirlas (verificado el 2026-08-31):
+  1. **Falta `.env` con `DATABASE_URL`.** El clon no lo trae (está en `.gitignore`, y con razón). Sin él Prisma no arranca.
+  2. **El cliente de Prisma está generado solo para Windows.** `node_modules/.prisma/client/` contiene únicamente `query_engine-windows.dll.node`. Corriendo los tests desde Linux el error ni siquiera menciona `DATABASE_URL`: pide agregar `debian-openssl-3.0.x` a `binaryTargets`. Es el mismo síntoma con dos orígenes según dónde se corra.
+
+  **No es una regresión.** Render no sufre esto porque corre `prisma generate` en su propia máquina Linux, y `binaryTargets` sin especificar significa `native`, que allá resuelve a Linux. El arreglo de verdad es mockear Prisma en esos tests, como ya hace `revocacion.test.js`, o levantar una base de prueba; así dejan de depender de dónde se corren.
 - [x] ~~Borrar el Worker viejo `transporte-proxy`~~ **NO SE BORRA — la premisa era falsa y peligrosa.**
   Al ir a borrarlo se vio que tiene DOS rutas:
   `viczul.com/transporte*` y `viczul.com/api*`.
@@ -193,7 +197,7 @@ Pendientes conocidos:
 Salidos de la revisión del 2026-08-30 (ordenados por lo que más duele):
 
 - [x] ~~Cambiar la contraseña no invalida sesiones~~ **hecho 2026-08-30, sin migración.** El token lleva `pv`, una huella del hash de la contraseña; al cambiarla el hash cambia y los tokens viejos mueren. Cuesta una lectura por usuario cada 60s (hay caché) y **falla abierta** a propósito: un hipo de Supabase no deja a un conductor sin panel a mitad de ruta. Nota vieja: Los JWT duran 7 días y no hay lista de revocación: si a alguien le entraron a la cuenta, cambiar la clave no lo echa. Haría falta versionar el token (un campo en `Usuario` que se incremente y que `authMiddleware` compare).
-- [x] ~~No hay rate limiting~~ **hecho 2026-08-30**: `src/shared/middleware/rateLimit.js`, sin dependencias, aplicado a `/login` (10 cada 10 min), `/registro-pasajero` (5 por hora) y `/cambiar-password` (5 cada 15 min). 10 pruebas propias en `tests/rateLimit.test.js`. Nota vieja: `POST /auth/login` y `POST /auth/cambiar-password` se pueden martillar sin límite, y el segundo confirma si la contraseña actual es correcta (400 "Contraseña actual incorrecta"): es un oráculo. `express-rate-limit` en `src/index.js` alcanza.
+- [x] ~~No hay rate limiting~~ **hecho 2026-08-30**: `src/shared/middleware/rateLimit.js`, sin dependencias, aplicado a `/login` (10 cada 10 min), `/registro-pasajero` (5 por hora) y `/cambiar-password` (5 cada 15 min). 7 pruebas propias en `tests/rateLimit.test.js`. Nota vieja: `POST /auth/login` y `POST /auth/cambiar-password` se pueden martillar sin límite, y el segundo confirma si la contraseña actual es correcta (400 "Contraseña actual incorrecta"): es un oráculo. `express-rate-limit` en `src/index.js` alcanza.
 - [x] ~~`ignoreBuildErrors`~~ **sacado 2026-08-30, con evidencia**: `tsc --noEmit` sobre todo `web/src` da CERO errores. `eslint.ignoreDuringBuilds` se deja a propósito. Nota vieja: Un error de tipos no rompe el deploy: se convierte en un bug de runtime silencioso. Se puso para destrabar un deploy; conviene sacarlo y arreglar lo que aparezca.
 - [ ] **No hay `.gitattributes` y el repo mezcla finales de línea.** Los archivos están commiteados con LF y en Windows quedan CRLF; una edición descuidada convierte el archivo entero y produce diffs de cientos de líneas que tapan el cambio real (ya pasó una vez). Contenido sugerido: `* text=auto eol=lf` más `*.bat text eol=crlf`. Aplicarlo renormaliza el repo, así que conviene hacerlo en un commit propio que no toque nada más.
 
@@ -244,7 +248,7 @@ Los logins, los tokens y los datos viajan por fuera.
 
 `worker/index.js` + `wrangler.toml` ponen `viczul.com/api/*` delante de
 Render. De paso arreglan el BUG 14 (el Worker viejo no reenviaba el body en
-POST, por eso la app no lo usaba). 17 pruebas en `worker/probar.mjs`,
+POST, por eso la app no lo usaba). 22 pruebas en `worker/probar.mjs`,
 ejecutables sin desplegar: `node worker/probar.mjs`.
 
 El Worker ahora vive **en el repo**, no en el dashboard. Eso es lo que hace
@@ -360,11 +364,11 @@ porque ahí no rige esa CSP. No unificar las dos a la ligera.
 
 | Archivo | Para qué |
 |---|---|
-| `MAPA_FUNCIONES.md` | Qué hace cada función y en qué línea |
+| `MAPA_FUNCIONES.md` | Qué hace cada función (sin números de línea, se desactualizan — usar `grep`) |
 | `MAPA_LLAMADAS.md` | Qué pantalla llama a qué endpoint, y qué endpoints no llama nadie |
 | `MAPA_DUPLICADOS.md` | Qué está escrito dos veces y cuál conviene unificar |
 | `REVISION_GUARDIANES.md` | La auditoría del 2026-08-30 y cómo se probó cada guardián |
-| `CAMBIOS_DETALLADOS.md` | Changelog de la sesión de julio (bugs 11-14) |
+| `CAMBIOS_DETALLADOS.md` | Changelog de todas las sesiones: julio (bugs 11-14), la noche del 2026-08-30 (bugs 15-22) y la simulación de flota del 2026-08-31 |
 
 Desde 2026-08-30 esta documentación vive en `docs/` dentro del repo, y los
 guardianes en `guardianes/`, corriendo solos en cada push vía GitHub Actions.

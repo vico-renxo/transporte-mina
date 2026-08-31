@@ -10,7 +10,7 @@ Trabajo en TransporteMina, mi sistema de transporte de personal minero.
 Repo público: https://github.com/vico-renxo/transporte-mina (rama main)
 
 ANTES DE TOCAR NADA, leé estos archivos del repo y confirmame que los leíste:
-- HANDOFF.md          → estado, arquitectura, reglas absolutas, bugs 1-14
+- HANDOFF.md          → estado, arquitectura, reglas absolutas, bugs 1-25
 - MAPA_FUNCIONES.md   → qué hace cada función
 - MAPA_LLAMADAS.md    → qué pantalla llama a qué endpoint
 - MAPA_DUPLICADOS.md  → qué está escrito dos veces

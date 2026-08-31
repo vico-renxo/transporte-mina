@@ -2,11 +2,20 @@
 # Worker que pone la API detras de Cloudflare.
 #
 # VIVE EN worker/ Y NO EN LA RAIZ, y eso NO es cosmetico:
-# Cloudflare Pages lee el wrangler.toml de la raiz del repo y falla el
-# build si encuentra claves de Worker (main, routes), porque espera
-# configuracion de Pages. Con el archivo en la raiz, TODOS los builds de
-# la web quedaron rotos y el sitio se congelo en la version anterior sin
-# que nada avisara. Hay un guardian que lo impide (verificar-wrangler).
+# Este archivo vive en worker/ y NO en la raiz del repo, a proposito:
+# Cloudflare Pages lee el wrangler.toml de la raiz y las claves de Worker
+# (main, routes) no son configuracion valida de Pages.
+#
+# OJO: en su momento se dijo que un wrangler.toml en la raiz habia roto
+# TODOS los builds de Pages. Eso era FALSO -- el dashboard mostraba cada
+# build en Success. La causa real de aquel problema fue otra: una
+# variable NEXT_PUBLIC_API_URL cargada en el dashboard de Pages, que le
+# gana al .env.production del repo.
+#
+# Tampoco existe un guardian que vigile esto. Se escribio uno y se
+# retiro, porque contaba una causa equivocada (ver
+# docs/REVISION_GUARDIANES.md). Mantener el archivo aca es una
+# convencion, no algo verificado automaticamente.
 #
 # Desplegar con:  npx wrangler deploy -c worker/wrangler.toml
 #

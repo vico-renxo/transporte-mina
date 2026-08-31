@@ -125,7 +125,7 @@ Causa: FRONTEND_URL en Render apuntando a URL incorrecta
 Solucion: FRONTEND_URL debe incluir https://viczul.com (sin barra final). La URL de Vercel ya no aplica.
 
 ### E8: navigate de Chrome MCP no soporta file:// URLs
-Solucion: Subir archivos HTML a GitHub/Vercel para servirlos desde HTTPS
+Solucion: Subir archivos HTML a GitHub; Cloudflare Pages los sirve por HTTPS desde viczul.com/transporte/
 
 ### E9: Monaco editor en Supabase SQL Editor
 Para inyectar SQL via JavaScript:
@@ -145,14 +145,24 @@ Solucion: Usar GitHub Contents API desde browser JavaScript:
 
 git add . && git commit -m 'descripcion' && git push origin main
 
-Render auto-redeploya el backend. Vercel auto-redeploya el frontend.
+Render auto-redeploya el backend. Cloudflare Pages auto-redeploya el frontend. Vercel YA NO participa.
 
 ---
 
 ## Monitoreo
 
 Render free tier duerme tras 15 min de inactividad.
-Solucion: UptimeRobot (gratis) pinguea https://transporte-mina.onrender.com/health cada 5 min.
+Solucion propuesta en su momento: UptimeRobot (gratis) pingueando
+https://transporte-mina.onrender.com/health cada 5 min.
+
+⚠️ SIN VERIFICAR (2026-08-31). No se pudo comprobar desde el repo si ese
+UptimeRobot existe realmente, porque vive fuera del codigo. Y contradice a
+docs/HANDOFF.md, que dice que hay una tarea programada que despierta a Render
+UNA vez por dia (5:50). Las dos cosas no pueden ser ciertas a la vez: con un
+ping cada 5 min Render nunca dormiria, y el mensaje de "servidor despertando"
+del login no tendria sentido. Antes de apoyarse en cualquiera de las dos,
+entrar a la cuenta de UptimeRobot y confirmar si el monitor existe y esta
+activo.
 
 ---
 

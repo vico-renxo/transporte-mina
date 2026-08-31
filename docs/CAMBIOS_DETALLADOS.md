@@ -1,6 +1,11 @@
-# CAMBIOS REALIZADOS — Sesión 2026-07-02 (Fable 5)
-**Commit:** `1bf615d` a main (un solo commit, 7 archivos) — desplegado y verificado en producción.
-**Base:** commit `f85f03e` (tu último commit).
+# CAMBIOS DETALLADOS — TransporteMina
+Changelog de las sesiones de trabajo sobre el repo. Orden cronológico
+inverso: la sesión más reciente arriba.
+
+**Índice:**
+- [2026-08-31 — Simulación de flota](#2026-08-31--simulación-de-flota)
+- [Sesión 2026-08-30 (noche) — bugs 15-22 del HANDOFF](#sesión-2026-08-30-noche--bugs-15-22-del-handoff)
+- [Sesión 2026-07-02 (Fable 5) — bugs 11-14 del HANDOFF](#sesión-2026-07-02-fable-5--bugs-11-14-del-handoff)
 
 ---
 
@@ -19,7 +24,49 @@ y la pantalla se veía perfecta.
 Documentado en HANDOFF §5 (bugs 23–25) y §8.d (cómo se prueban las páginas
 sueltas), y en MAPA_FUNCIONES §Páginas sueltas.
 
-## BUGS NUEVOS ENCONTRADOS (no estaban en tu documentación)
+---
+
+## Sesión 2026-08-30 (noche) — bugs 15-22 del HANDOFF
+
+### Bugs corregidos
+
+| # | Qué estaba mal | Cómo se vio |
+|---|---|---|
+| 15 | El build de Render corría `prisma migrate deploy` | Contra la regla 6: el pooler 6543 no soporta esos locks |
+| 16 | `new PrismaClient()` en `gps.routes.js` | Una conexión por request en el endpoint más caliente |
+| 17 | `simulacion.html` tenía la página escrita **dos veces** | 43 ids duplicados, 6 mapas en vez de 3, `Unexpected token '<'` en consola |
+| 18 | La simulación leía `{conductores:[...]}` como array | Conductor y vehículo en «—», y `POST /rutas/:id/iniciar` daba 400. **Sin ningún error**: nunca creaba una ejecución real |
+| 19 | `startOfDay()` copiada en 5 lugares | El mapa original solo había detectado 2 |
+| 20 | `distKm` con dos firmas distintas | Con esa cuenta el admin decide qué paradero le queda más cerca a un pasajero |
+| 21 | Dos handlers para iniciar ruta | Mismos roles en distinto orden: divergir era cuestión de tiempo |
+| 22 | `cambiar-password` no validaba nada | Aceptaba una contraseña de un carácter; un número en el JSON reventaba en bcrypt con 500 |
+
+### Lo que se agregó
+
+- **Pantalla de cambiar contraseña** (`/transporte/cambiar-password/`), para los 3 roles.
+- **Rate limiting** sin dependencias en `/login`, `/registro-pasajero` y `/cambiar-password`.
+- **Worker de Cloudflare** (`worker/`): la API pasa a ir por `viczul.com/api`. Arregla el BUG 14.
+- **Guardianes 7 y 8**: forma de la API, y socket.
+- `subir cambios.bat`, `desplegar worker.bat`, `activar cloudflare.bat`.
+
+### Errores cometidos durante la sesión (que también enseñan)
+
+1. **La pantalla de contraseña le cambiaba la clave al usuario equivocado.** Las 3 sesiones conviven en el mismo navegador y ningún login limpiaba las otras; elegía «la primera que existiera». Lo encontró una revisión hecha por otro agente, no yo.
+2. **Mover la API a Cloudflare rompió el WebSocket**, porque dos pantallas lo abrían con la misma constante. Estuvo roto en producción un rato.
+3. **Se culpó al `wrangler.toml` de la raíz** de romper los builds de Pages. Falso: todos figuraban Success. La causa real era la variable de build del dashboard pisando a `.env.production`.
+4. **Las verificaciones por grep del bundle no servían**: con `basePath`, los chunks están en `/transporte/_next/...` y se estaban pidiendo en `/_next/...`, que devuelve 404. Se buscó texto dentro de respuestas vacías durante un buen rato.
+
+**La lección de las cuatro**: lo único que no se puede falsear es hacer que la
+app haga la llamada y mirar a dónde va. El bundle, el panel, el CI y los
+guardianes pueden estar todos en verde con la app rota.
+
+---
+
+## Sesión 2026-07-02 (Fable 5) — bugs 11-14 del HANDOFF
+**Commit:** `1bf615d` a main (un solo commit, 7 archivos) — desplegado y verificado en producción.
+**Base:** commit `f85f03e` (tu último commit).
+
+### BUGS NUEVOS ENCONTRADOS (no estaban en tu documentación)
 
 ### BUG 11 — El login nunca devolvía conductorId ni pasajeroId
 **Archivo:** `src/modules/auth/auth.service.js`
@@ -63,7 +110,7 @@ El proxy `/api/*` hace `fetch(targetUrl, { method, headers, redirect })` SIN `bo
 
 ---
 
-## PENDIENTES DE TU LISTA — RESUELTOS
+### PENDIENTES DE TU LISTA — RESUELTOS
 
 ### 1. Conductor — Checkin dinámico (Alta prioridad #1) ✅
 **Archivo:** `web/src/app/conductor/page.tsx` (reescrito completo, 411 líneas)
@@ -98,7 +145,7 @@ Reescrito de `style` inline a Tailwind, mismo lenguaje visual que el panel pasaj
 
 ---
 
-## MEJORAS NUEVAS (no estaban en tu lista)
+### MEJORAS NUEVAS (no estaban en tu lista)
 
 ### Conductor (`conductor/page.tsx`)
 - **GPS REAL del teléfono**: `navigator.geolocation.watchPosition` con `enableHighAccuracy`, máx. 1 envío cada 4s. La ruta simulada de Arequipa quedó como checkbox "Modo demo".
@@ -115,7 +162,7 @@ Reescrito de `style` inline a Tailwind, mismo lenguaje visual que el panel pasaj
 
 ---
 
-## ARCHIVOS DEL COMMIT `1bf615d`
+### ARCHIVOS DEL COMMIT `1bf615d`
 | Archivo | Cambio |
 |---|---|
 | `src/modules/auth/auth.service.js` | + conductorId/pasajeroId en login (BUG 11) |
@@ -126,51 +173,17 @@ Reescrito de `style` inline a Tailwind, mismo lenguaje visual que el panel pasaj
 | `web/src/app/conductor/page.tsx` | REESCRITO: Tailwind + checkin dinámico + GPS real + incidencia + logout + 401 |
 | `web/src/app/pasajero/page.tsx` | + en-paradero, logout, manejo 401 |
 
-## PRUEBAS EN PRODUCCIÓN (2026-07-02, todo ✅)
+### PRUEBAS EN PRODUCCIÓN (2026-07-02, todo ✅)
 1. Backend: health, login×3 roles, rutas/activas con rutaId+conductorId, estados-hoy (5 paraderos, María en Sachaca), POST gps/coordenada, mi-perfil con ejecución activa, en-paradero.
 2. UI conductor: login → ruta asignada → checkin de María ✅ → contador 1/1 abordo.
 3. UI pasajero: login María → mapa con bus en la coordenada enviada → 7.9km del bus → botón avisar conductor → "Conductor avisado".
 4. Cleanup: ruta finalizada vía API (resumen: 1 recogido, 0 ausentes, 7 min).
 
-## MÉTODO DE DEPLOY USADO (nuevo, documentar)
+### MÉTODO DE DEPLOY USADO (nuevo, documentar)
 GitHub Git Data API desde un tab del browser (origen ≠ github.com): crear blobs base64 → tree sobre base_tree → commit → PATCH refs/heads/main. **Un solo commit = un solo build** en los 3 servicios (en vez de 7 commits/7 builds con la API de contents).
 
-## ACCIÓN PENDIENTE PARA VICO
+### ACCIÓN PENDIENTE PARA VICO
 - ⚠️ Revocar el token `github_pat_11B3OJ...` (quedó pegado en el chat): https://github.com/settings/tokens
 - Copiar este documento a `C:\Users\usuario\Desktop\CLAUDE.md` (regla #9 tuya).
 
 ---
-
-# Sesión del 2026-08-30 (noche)
-
-## Bugs corregidos (15-22 del HANDOFF)
-
-| # | Qué estaba mal | Cómo se vio |
-|---|---|---|
-| 15 | El build de Render corría `prisma migrate deploy` | Contra la regla 6: el pooler 6543 no soporta esos locks |
-| 16 | `new PrismaClient()` en `gps.routes.js` | Una conexión por request en el endpoint más caliente |
-| 17 | `simulacion.html` tenía la página escrita **dos veces** | 43 ids duplicados, 6 mapas en vez de 3, `Unexpected token '<'` en consola |
-| 18 | La simulación leía `{conductores:[...]}` como array | Conductor y vehículo en «—», y `POST /rutas/:id/iniciar` daba 400. **Sin ningún error**: nunca creaba una ejecución real |
-| 19 | `startOfDay()` copiada en 5 lugares | El mapa original solo había detectado 2 |
-| 20 | `distKm` con dos firmas distintas | Con esa cuenta el admin decide qué paradero le queda más cerca a un pasajero |
-| 21 | Dos handlers para iniciar ruta | Mismos roles en distinto orden: divergir era cuestión de tiempo |
-| 22 | `cambiar-password` no validaba nada | Aceptaba una contraseña de un carácter; un número en el JSON reventaba en bcrypt con 500 |
-
-## Lo que se agregó
-
-- **Pantalla de cambiar contraseña** (`/transporte/cambiar-password/`), para los 3 roles.
-- **Rate limiting** sin dependencias en `/login`, `/registro-pasajero` y `/cambiar-password`.
-- **Worker de Cloudflare** (`worker/`): la API pasa a ir por `viczul.com/api`. Arregla el BUG 14.
-- **Guardianes 7 y 8**: forma de la API, y socket.
-- `subir cambios.bat`, `desplegar worker.bat`, `activar cloudflare.bat`.
-
-## Errores cometidos durante la sesión (que también enseñan)
-
-1. **La pantalla de contraseña le cambiaba la clave al usuario equivocado.** Las 3 sesiones conviven en el mismo navegador y ningún login limpiaba las otras; elegía «la primera que existiera». Lo encontró una revisión hecha por otro agente, no yo.
-2. **Mover la API a Cloudflare rompió el WebSocket**, porque dos pantallas lo abrían con la misma constante. Estuvo roto en producción un rato.
-3. **Se culpó al `wrangler.toml` de la raíz** de romper los builds de Pages. Falso: todos figuraban Success. La causa real era la variable de build del dashboard pisando a `.env.production`.
-4. **Las verificaciones por grep del bundle no servían**: con `basePath`, los chunks están en `/transporte/_next/...` y se estaban pidiendo en `/_next/...`, que devuelve 404. Se buscó texto dentro de respuestas vacías durante un buen rato.
-
-**La lección de las cuatro**: lo único que no se puede falsear es hacer que la
-app haga la llamada y mirar a dónde va. El bundle, el panel, el CI y los
-guardianes pueden estar todos en verde con la app rota.

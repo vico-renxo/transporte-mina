@@ -79,7 +79,6 @@ Existen en el backend, ninguna pantalla los usa. No son bugs; son cosas a medio 
 
 | Endpoint | Qué significa |
 |---|---|
-
 | `POST /api/auth/fcm-token` | Las push de Firebase están en modo DEMO (solo `console.log`). |
 | `GET /api/auth/me` | El front confía en el `usuario` guardado en localStorage. Si cambiás un rol en la base, la sesión vieja no se entera. |
 | `POST /api/checkin/paradero` | Subida por lote (todo un paradero de una). El conductor marca de a uno. |

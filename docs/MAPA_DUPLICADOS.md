@@ -9,24 +9,28 @@ de 6 líneas idénticas (normalizando espacios) entre archivos distintos.
 
 ### ✅ 1. Dos puertas para la misma habitación — `iniciarRuta` — RESUELTO 2026-08-30
 
-`src/modules/rutas/rutas.routes.js`:
+`src/modules/rutas/rutas.routes.js` tenía `POST /:id/iniciar` y `POST /iniciar`
+declaradas por separado, cada una con su propia lista de roles y su propio
+handler que armaba el mismo llamado a `iniciarRuta`. Mismo service, dos
+rutas, dos juegos de permisos que había que acordarse de mantener iguales —
+la familia de bug más cara: el día que alguien sumara un rol a una y se
+olvidara de la otra, el agujero quedaba abierto sin que nadie lo notara.
 
-```js
-L41: router.post('/:id/iniciar', ... )  → iniciarRuta({ rutaId: req.params.id, ...req.body })
-L46: router.post('/iniciar',     ... )  → iniciarRuta(req.body)
-```
-
-Mismo service, dos rutas, dos juegos de permisos que hay que acordarse de
-mantener iguales. El front solo usa la primera. **Recomendación:** borrar
-`POST /iniciar` (nadie la llama) o dejarla documentada como la de la app del
-conductor. Hoy es una regla escrita dos veces — la familia de bug más cara.
+Ahora `ROLES_INICIAR` y `handlerIniciar` existen una sola vez y se montan en
+los dos paths (`router.post('/:id/iniciar', ...)` y `router.post('/iniciar',
+...)`), así que divergir se volvió imposible. El path sin `:id` se conserva
+por si algún cliente afuera de este repo lo usa; el front del panel solo usa
+`/:id/iniciar`.
 
 ### ✅ 2. `startOfDay()` copiada en dos servicios — RESUELTO 2026-08-30
 
-`alertas.service.js:227` y `pasajeros.service.js:4`. Idénticas hoy. El día que
-una tenga en cuenta el huso horario de Perú y la otra no, los estados del día
-y las alertas van a discrepar sin que nadie lo note. **Recomendación:**
-`src/shared/fechas.js` y que las dos importen de ahí.
+`alertas.service.js` y `pasajeros.service.js` tenían cada uno su propia copia
+de `startOfDay()`. Idénticas en ese momento, pero el día que una tuviera en
+cuenta el huso horario de Perú y la otra no, los estados del día y las
+alertas iban a discrepar sin que nadie lo notara. Ahora ambas hacen
+`require('../../shared/fechas')` y usan la única definición de
+`src/shared/fechas.js` (junto con `rutas.service.js` y `reportes.service.js`,
+que también la consumen de ahí).
 
 ### ✅ 3. `distKm` / Haversine — dos implementaciones — RESUELTO 2026-08-30
 

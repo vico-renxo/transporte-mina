@@ -44,11 +44,16 @@ viczul.com/transporte y el backend vivo en Render.
 | `web/.env.production` correcto | `NEXT_PUBLIC_API_URL=https://transporte-mina.onrender.com` |
 | Sin `localhost:3001` en código de app | solo aparece como fallback en `next.config.js` |
 
-## 3. Lo que falta (2 cosas reales)
+## 3. Lo que faltaba (2 cosas, ambas resueltas el 2026-08-30)
 
-### 🔴 A. El build de Render corre migraciones — contra tu propia regla
+### ✅ A. El build de Render corre migraciones — contra tu propia regla — RESUELTO 2026-08-30 (HANDOFF bug 15)
 
-`package.json`:
+> **Resuelto 2026-08-30.** `package.json` ya tiene `"build": "prisma
+> generate"`, sin `migrate deploy`. Es el bug 15 del HANDOFF. Queda el texto
+> original de esta revisión como registro de qué se detectó y por qué
+> importaba:
+
+`package.json` tenía:
 
 ```json
 "build": "prisma generate && prisma migrate deploy"
@@ -56,24 +61,31 @@ viczul.com/transporte y el backend vivo en Render.
 
 Tu regla absoluta dice **nunca** migrar en el build: la base está detrás del
 pooler de Supabase (6543, pgBouncer) y `migrate deploy` pide locks que el
-pooler no soporta. Hoy no explota porque Render usa su propio comando, pero
-es una bomba con temporizador: el día que alguien toque la config del
-servicio, o restaures el servicio desde cero, el deploy se cuelga.
+pooler no soporta. No explotaba porque Render usaba su propio comando, pero
+era una bomba con temporizador: el día que alguien tocara la config del
+servicio, o restaurara el servicio desde cero, el deploy se colgaba.
 
-**Arreglo:** `"build": "prisma generate"`.
+**Arreglo aplicado:** `"build": "prisma generate"`.
 
-### 🟡 B. `gps.routes.js` consulta la base desde la capa de rutas
+### ✅ B. `gps.routes.js` consulta la base desde la capa de rutas — RESUELTO 2026-08-30 (HANDOFF bug 16)
 
-`src/modules/gps/gps.routes.js:3` crea su propio `PrismaClient` (segundo pool
-de conexiones del módulo) y hace un `findUnique` con 3 joins **en cada
+> **Resuelto 2026-08-30.** `gps.routes.js` ya no crea su propio
+> `PrismaClient`: llama a `obtenerInfoEjecucion()` en `gps.service.js`, que
+> cachea el resultado 5 minutos por `rutaEjecucionId`. Es el bug 16 del
+> HANDOFF. Queda el texto original de esta revisión como registro:
+
+`src/modules/gps/gps.routes.js` creaba su propio `PrismaClient` (segundo pool
+de conexiones del módulo) y hacía un `findUnique` con 3 joins **en cada
 coordenada GPS que manda el conductor** — o sea cada 4 segundos, por
 conductor, solo para armar el nombre que va en el evento de socket.
 
-No es el BUG 13 (ahí era una conexión nueva por request), pero es la misma
+No era el BUG 13 (ahí era una conexión nueva por request), pero era la misma
 familia: consulta pesada en el camino caliente, sobre el plan free.
 
-**Arreglo:** mover ese `findUnique` a `gps.service.js` y cachear el resultado
-por `rutaEjecucionId` (los datos no cambian durante la ruta).
+**Arreglo aplicado:** el `findUnique` se movió a `gps.service.js` como
+`obtenerInfoEjecucion()`, con caché de 5 minutos por `rutaEjecucionId` (los
+datos no cambian durante la ejecución), más `olvidarEjecucion()` para
+invalidar si hace falta.
 
 ### Nota aparte, no es bug
 
