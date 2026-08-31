@@ -145,7 +145,7 @@ async function listarPasajeros({ rutaId, paraderoId, aprobado } = {}) {
   return prisma.pasajero.findMany({
     where,
     include: {
-      usuario: { select: { nombre: true, email: true, telefono: true } },
+      usuario: { select: { nombre: true, email: true, telefono: true, activo: true } },
       paradero: { select: { nombre: true, orden: true } },
       ruta:     { select: { nombre: true } }
     },
@@ -189,7 +189,41 @@ async function calificarServicio({ pasajeroId, rutaEjecucionId, estrellas, comen
   });
 }
 
+// ════════════════════════════════════════════════════════════════
+// DAR DE BAJA A UN PASAJERO
+//
+// No hay borrado, y es a proposito. Un pasajero tiene checkins, estados de
+// turno y calificaciones colgando: borrarlo obliga a decidir que pasa con
+// ese historial, y las claves foraneas lo bloquearian igual. Desactivar es
+// reversible y no pierde nada.
+//
+// Efecto inmediato en tres lugares:
+//  1. login() ya rechaza usuarios con activo=false,
+//  2. la revocacion por huella (auth.service) tambien: sus sesiones abiertas
+//     mueren en el proximo request, no en 7 dias,
+//  3. la lista del panel lo muestra apagado.
+// ════════════════════════════════════════════════════════════════
+async function cambiarActivoPasajero(pasajeroId, activo) {
+  const pasajero = await prisma.pasajero.findUnique({
+    where: { id: pasajeroId },
+    select: { usuarioId: true },
+  });
+  if (!pasajero) throw { status: 404, message: 'Pasajero no encontrado' };
+
+  await prisma.usuario.update({
+    where: { id: pasajero.usuarioId },
+    data: { activo: Boolean(activo) },
+  });
+
+  // Sin esto la sesion abierta sobrevive hasta 60s por el cache de huellas.
+  const { olvidarHuella } = require('../auth/auth.service');
+  olvidarHuella(pasajero.usuarioId);
+
+  return { ok: true, activo: Boolean(activo) };
+}
+
 module.exports = {
+  cambiarActivoPasajero,
   declararEstado, marcarEnParadero, listarPendientesAprobacion,
   aprobarPasajero, listarPasajeros, obtenerEstadosHoy, calificarServicio,
   obtenerMiPerfil, obtenerPasajeroPorUsuario, actualizarMiDomicilio

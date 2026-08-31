@@ -190,8 +190,14 @@ Salidos de la revisión del 2026-08-30 (ordenados por lo que más duele):
 - [x] ~~`ignoreBuildErrors`~~ **sacado 2026-08-30, con evidencia**: `tsc --noEmit` sobre todo `web/src` da CERO errores. `eslint.ignoreDuringBuilds` se deja a propósito. Nota vieja: Un error de tipos no rompe el deploy: se convierte en un bug de runtime silencioso. Se puso para destrabar un deploy; conviene sacarlo y arreglar lo que aparezca.
 - [ ] **No hay `.gitattributes` y el repo mezcla finales de línea.** Los archivos están commiteados con LF y en Windows quedan CRLF; una edición descuidada convierte el archivo entero y produce diffs de cientos de líneas que tapan el cambio real (ya pasó una vez). Contenido sugerido: `* text=auto eol=lf` más `*.bat text eol=crlf`. Aplicarlo renormaliza el repo, así que conviene hacerlo en un commit propio que no toque nada más.
 
-- [ ] Borrar el usuario de prueba "Pedro GPS".
-- [ ] Aprobar el registro pendiente de Victor Renzo.
+- [ ] **Dar de baja a "Pedro Prueba GPS"** — ahora ya se puede: hay botón "⏻ Dar de baja" en el panel de Pasajeros. Antes era imposible: **no existía ningún endpoint para borrar ni desactivar a nadie**, ni UI para hacerlo. Falta desplegar y apretarlo.
+
+  Se eligió desactivar y NO borrar a propósito: un pasajero tiene checkins,
+  estados de turno y calificaciones colgando. Borrarlo obliga a decidir qué
+  pasa con ese historial y las claves foráneas lo bloquearían igual.
+  Desactivar es reversible y no pierde nada — y con la revocación por huella
+  agregada hoy, además le cierra las sesiones abiertas en el próximo request.
+- [x] ~~Aprobar a Victor Renzo~~ **ya estaba aprobado** (Ruta 1, paradero Hunter). Verificado en el panel: 0 pendientes.
 
 ## 8.b Cómo se verificó lo del 2026-08-30
 

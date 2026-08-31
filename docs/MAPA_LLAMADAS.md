@@ -66,6 +66,10 @@ las 3 sesiones pueden convivir en el mismo navegador; sin eso elegía la
 primera que encontrara y le cambiaba la contraseña al usuario equivocado.
 Se entra desde el sidebar del admin y el header de conductor y pasajero.
 
+Nuevo el 2026-08-30: `PATCH /api/pasajeros/{id}/activo` — da de baja o
+reactiva a un pasajero (ADMIN/SUPERVISOR). **No hay DELETE a propósito**,
+ver el comentario en `pasajeros.service.js`.
+
 ### 🖥️ Panel admin (`lib/api.ts`, 29 funciones)
 `/auth/login` · `/reportes/dashboard|diario|semanal|diario/excel` · `/rutas` (+`/activas`, `/historial`, `/{id}/iniciar`, `/{id}/finalizar`) · `/conductores` · `/vehiculos` · `/pasajeros` (+`/pendientes`, `/{id}/aprobar`, `/estados-hoy/{rutaId}`) · `/checkin/{id}` (+`/resumen`) · `/alertas/emergencia` · `/gps/ultima/{id}`
 

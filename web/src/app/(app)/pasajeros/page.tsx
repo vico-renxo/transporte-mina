@@ -1,14 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { getPasajeros, getPendientes, aprobarPasajero, getRutas } from '@/lib/api';
+import { getPasajeros, getPendientes, aprobarPasajero, getRutas, cambiarActivoPasajero } from '@/lib/api';
 import { badgeEstado, formatFecha, cn } from '@/lib/utils';
 import { cached, bust, hasCache } from '@/lib/cache';
 import { distKm } from '@/lib/geo';
 
 interface Pasajero {
   id: string;
-  usuario: { nombre: string; email: string; telefono?: string };
+  usuario: { nombre: string; email: string; telefono?: string; activo?: boolean };
   paradero: { id?: string; nombre: string } | null;
   ruta: { id?: string; nombre: string } | null;
   paraderoId?: string | null;
@@ -73,6 +73,19 @@ export default function PasajerosPage() {
     }
     setRutaSel(mejorRuta);
     setParaderoSel(mejorParadero);
+  };
+
+  // Dar de baja / reactivar. No se borra: ver el comentario en el service.
+  const alternarActivo = async (p: Pasajero) => {
+    const activar = !p.usuario?.activo;
+    const nombre = p.usuario?.nombre || 'este pasajero';
+    if (!activar && !confirm(`¿Dar de baja a ${nombre}? No se borra nada: deja de poder entrar y sus sesiones abiertas se cierran. Se puede reactivar.`)) return;
+    try {
+      await cambiarActivoPasajero(p.id, activar);
+      toast.success(activar ? `${nombre} reactivado` : `${nombre} dado de baja`);
+      bust('pasajeros', 'pendientes');
+      cargar();
+    } catch (err: any) { toast.error(err.response?.data?.error || 'No se pudo cambiar'); }
   };
 
   const confirmarAprobacion = async () => {
@@ -188,10 +201,21 @@ export default function PasajerosPage() {
                       Aprobar
                     </button>
                   ) : (
+                    <>
                     <button onClick={() => abrirAprobacion(p)}
                       className="text-xs bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors font-semibold">
                       ✎ Editar
                     </button>
+                    <button onClick={() => alternarActivo(p)}
+                      title={p.usuario?.activo ? 'Dar de baja (no borra nada)' : 'Reactivar'}
+                      className={`ml-2 text-xs px-3 py-1.5 rounded-lg transition-colors font-semibold border ${
+                        p.usuario?.activo
+                          ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-500/40'
+                          : 'bg-amber-600/20 border-amber-600/40 text-amber-400 hover:bg-amber-600/30'
+                      }`}>
+                      {p.usuario?.activo ? '⏻ Dar de baja' : '↺ Reactivar'}
+                    </button>
+                    </>
                   )}
                 </td>
               </tr>

@@ -3,7 +3,7 @@ const {
   declararEstado, marcarEnParadero, listarPendientesAprobacion,
   aprobarPasajero, listarPasajeros, obtenerEstadosHoy, calificarServicio,
   obtenerMiPerfil, obtenerPasajeroPorUsuario, actualizarMiDomicilio
-} = require('./pasajeros.service');
+, cambiarActivoPasajero } = require('./pasajeros.service');
 const { authMiddleware, requireRol } = require('../../shared/middleware/auth');
 const router = express.Router();
 
@@ -31,6 +31,13 @@ router.get('/pendientes', authMiddleware, requireRol('ADMIN', 'SUPERVISOR'), asy
 
 router.get('/estados-hoy/:rutaId', authMiddleware, async (req, res, next) => {
   try { res.json(await obtenerEstadosHoy(req.params.rutaId)); } catch (err) { next(err); }
+});
+
+// Dar de baja / reactivar. No hay DELETE a proposito: ver el comentario en
+// el service. Se desactiva al USUARIO, no se borra al pasajero.
+router.patch('/:id/activo', authMiddleware, requireRol('ADMIN', 'SUPERVISOR'), async (req, res, next) => {
+  try { res.json(await cambiarActivoPasajero(req.params.id, req.body.activo)); }
+  catch (err) { next(err); }
 });
 
 router.post('/:id/aprobar', authMiddleware, requireRol('ADMIN', 'SUPERVISOR'), async (req, res, next) => {

@@ -58,6 +58,8 @@ export const actualizarVehiculo = (id: string, data: any) => api.put(`/vehiculos
 
 // --- Pasajeros ---
 export const getPasajeros   = ()          => api.get('/pasajeros').then(r => r.data);
+export const cambiarActivoPasajero = (id: string, activo: boolean) =>
+  api.patch(`/pasajeros/${id}/activo`, { activo }).then(r => r.data);
 export const getPendientes  = ()          => api.get('/pasajeros/pendientes').then(r => r.data);
 export const aprobarPasajero= (id: string, paraderoId?: string) =>
   api.post(`/pasajeros/${id}/aprobar`, { paraderoId }).then(r => r.data);
