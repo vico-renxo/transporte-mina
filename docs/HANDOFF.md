@@ -138,11 +138,39 @@ contaba como ruta activa. Pasada a `SUSPENDIDA`. Ojo con el enum: los valores
 válidos son `PENDIENTE`, `EN_RUTA`, `COMPLETADA`, `SUSPENDIDA`. **No existe
 `CANCELADA`** (lo intenté y Postgres lo rechazó).
 
-**Límite conocido**: `web/public/simulacion.html` corre **una sola unidad**.
-Toma la primera ruta y un conductor, y está escrita para un actor de cada
-tipo. Los datos para 4 unidades en 2 direcciones ya están en la base, pero esa
-página todavía no los usa. Para verlas todas juntas hoy está
-`simulacion-flota.html`, que es cerrada y no toca la base.
+**Resuelto el 2026-08-31**: `simulacion.html` ya corre **hasta 4 unidades a la
+vez**, cada una con su ruta, conductor, vehículo y `RutaEjecucion` propia, la
+mitad de ida y la mitad de vuelta. Selector de cuántas unidades, y otro para
+elegir cuál mira el panel del conductor. El panel del pasajero sigue
+automáticamente a la unidad **más cercana** a su paradero, venga de donde
+venga.
+
+La clave del diseño: **no hay un segundo juego de coordenadas para la vuelta.**
+Una unidad con `dir=-1` recorre el mismo trazado al revés. Todo lo que dependa
+de dónde está una unidad pasa por `idxDe()` / `posDe()` / `pasoDe()`, así las
+dos direcciones no pueden desincronizarse porque no se calculan en dos lugares.
+
+Prueba: `node web/public/probar-simulacion.mjs` (21 aserciones, sin navegador
+ni backend). Extrae el `<script>` de la página misma y lo corre con shims de
+DOM, Leaflet y `fetch`. Verificada con control negativo: al sabotear `idxDe()`
+para que la vuelta no invierta, dos aserciones fallan.
+
+## 4.d Hallazgo abierto: GPS sin dueño
+
+`POST /api/gps/coordenada` exige rol `CONDUCTOR` **pero no verifica que la
+`RutaEjecucion` sea de ese conductor**. Cualquier conductor autenticado puede
+inyectar coordenadas en la ejecución de cualquier otro: mover un bus ajeno en
+el mapa del supervisor y disparar alertas de proximidad falsas a los pasajeros
+de esa ruta.
+
+Se descubrió al hacer multi-unidad la simulación: un solo token de conductor
+mueve las 4 unidades. Para la simulación es cómodo; en producción es un
+agujero.
+
+**Arreglo** (no aplicado, decisión tuya): en `guardarCoordenada`, comparar
+`ejecucion.conductorId` con `req.usuario` y rechazar con 403 si no coinciden.
+Ojo: eso **rompe la simulación multi-unidad** tal como está hoy, que tendría
+que loguearse con cada conductor. Es el precio correcto a pagar.
 
 ## 4.c Rotar la contraseña del admin
 

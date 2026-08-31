@@ -74,6 +74,8 @@ header h1{font-size:1.2rem;color:#58a6ff;font-weight:700}
 <div class="sc">
 <button class="btn btn-p" id="btn-s" onclick="start()" disabled>▶ Iniciar Simulacion</button>
 <button class="btn btn-d" id="btn-x" onclick="stop()" disabled>■ Detener</button>
+<label style="font-size:.78rem;color:#8b949e;margin-left:10px">Unidades
+<select id="sel-n" style="background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:5px;padding:3px 6px;margin-left:4px"><option>1</option><option>2</option><option>3</option><option selected>4</option></select></label>
 <span style="font-size:.78rem;color:#8b949e">Progreso:</span>
 <div class="pb-c"><div class="pb" id="prg" style="width:0%"></div></div>
 <span style="font-size:.78rem;color:#8b949e" id="prg-l">0 / 5 paraderos</span>
@@ -90,6 +92,7 @@ header h1{font-size:1.2rem;color:#58a6ff;font-weight:700}
 <div class="sc2"><div class="sl">Pasajeros abordo</div><div class="sv pp" id="a-pa">0</div></div>
 <div class="sc2"><div class="sl">Velocidad prom.</div><div class="sv o" id="a-vel">0 km/h</div></div>
 </div>
+<div class="pl" id="ulist" style="margin-bottom:6px"></div>
 <div class="mc" id="map-a" style="height:200px"></div>
 <div class="ic"><h4>Ejecucion activa</h4>
 <div class="ir"><span>Ruta</span><span id="a-rn">&mdash;</span></div>
@@ -108,6 +111,7 @@ header h1{font-size:1.2rem;color:#58a6ff;font-weight:700}
 <div class="ir"><span>Nombre</span><span>Juan Mamani</span></div>
 <div class="ir"><span>Licencia</span><span>BII-1234</span></div>
 <div class="ir"><span>Vehiculo</span><span>ABA-123 &middot; Toyota Hiace</span></div>
+<div class="ir"><span>Unidad</span><select id="sel-u" style="background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:5px;padding:2px 6px;font-size:.75rem"></select></div>
 <div class="ir"><span>Turno</span><span id="c-st">🟡 Esperando</span></div>
 </div>
 <div class="gd">
@@ -151,7 +155,10 @@ header h1{font-size:1.2rem;color:#58a6ff;font-weight:700}
 </div>
 <script>
 const API='https://transporte-mina.onrender.com';
-let aT,cT,pT,rutaId,condId,vehId,ejecId,simInt,step=0,running=false,t0,sock;
+
+// Trazado base: Mina Central -> Plaza de Armas. Una unidad "de vuelta"
+// recorre EL MISMO trazado al reves (dir=-1), asi no hace falta un segundo
+// juego de coordenadas y las dos direcciones no se pueden contradecir.
 const ROUTE=[
   {lat:-16.4090,lng:-71.5375,spd:0},{lat:-16.4120,lng:-71.5430,spd:35},
   {lat:-16.4155,lng:-71.5510,spd:50},{lat:-16.4200,lng:-71.5700,spd:30},
@@ -167,10 +174,26 @@ const PARS=[
   {n:'Hunter',lat:-16.4250,lng:-71.5400,st:8},
   {n:'Plaza de Armas',lat:-16.3989,lng:-71.5350,st:11}
 ];
-let mA,mC,mP,mkA,mkC,mkP;
+const MI_PARADERO=2;
+const TONOS=['#3fb950','#58a6ff','#d2a8ff','#f0883e'];
+
+let aT,cT,pT,sock,simInt,running=false,t0;
+let RUTAS=[],CONDS=[],VEHS=[];
+let unidades=[],uSel=0,mA,mC,mP;
+
+// dir=1 recorre ROUTE de 0 a N-1; dir=-1 al reves. TODO lo que dependa de
+// "donde esta" pasa por aca, para que las dos direcciones no se calculen en
+// dos lugares distintos y se desincronicen.
+function idxDe(u,paso){
+  const p=Math.max(0,Math.min(paso,ROUTE.length-1));
+  return u.dir===1 ? p : (ROUTE.length-1-p);
+}
+function posDe(u){ return ROUTE[idxDe(u,u.step)]; }
+function pasoDe(u,p){ return u.dir===1 ? p.st : (ROUTE.length-1-p.st); }
+function nombreDir(u){ return u.dir===1?'Mina -> Arequipa':'Arequipa -> Mina'; }
 
 function log(id,msg,t=''){
-  const b=document.getElementById('log-'+id);
+  const b=document.getElementById('log-'+id); if(!b)return;
   const d=document.createElement('div');d.className='ll '+t;
   const ts=new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   d.textContent='['+ts+'] '+msg;b.appendChild(d);b.scrollTop=b.scrollHeight;
@@ -190,24 +213,22 @@ function initMaps(){
   const tl='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   [mA,mC,mP].forEach(m=>L.tileLayer(tl,{maxZoom:18}).addTo(m));
   PARS.forEach((p,i)=>{
-    const ic=L.divIcon({html:`<div style="background:#161b22;border:2px solid #30363d;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#8b949e;font-weight:700">${i+1}</div>`,className:'',iconSize:[18,18],iconAnchor:[9,9]});
+    const ic=L.divIcon({html:'<div style="background:#161b22;border:2px solid #30363d;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#8b949e;font-weight:700">'+(i+1)+'</div>',className:'',iconSize:[18,18],iconAnchor:[9,9]});
     [mA,mC,mP].forEach(m=>L.marker([p.lat,p.lng],{icon:ic}).addTo(m).bindPopup(p.n));
   });
   const rl=PARS.map(p=>[p.lat,p.lng]);
   [mA,mC,mP].forEach(m=>L.polyline(rl,{color:'#30363d',weight:2,dashArray:'4,4'}).addTo(m));
-  const pI=L.divIcon({html:'<div style="background:#4a1d52;border:2px solid #d2a8ff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px">👤</div>',className:'',iconSize:[22,22],iconAnchor:[11,11]});
-  L.marker([PARS[2].lat,PARS[2].lng],{icon:pI}).addTo(mP).bindPopup('Maria Lopez - Sachaca');
+  const pI=L.divIcon({html:'<div style="background:#4a1d52;border:2px solid #d2a8ff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px">P</div>',className:'',iconSize:[22,22],iconAnchor:[11,11]});
+  L.marker([PARS[MI_PARADERO].lat,PARS[MI_PARADERO].lng],{icon:pI}).addTo(mP).bindPopup('Maria Lopez - '+PARS[MI_PARADERO].n);
 }
-
 function initPList(){
-  const l=document.getElementById('plist');l.innerHTML='';
+  const l=document.getElementById('plist'); if(!l)return; l.innerHTML='';
   PARS.forEach((p,i)=>{
     const d=document.createElement('div');d.className='pi upc';d.id='pi-'+i;
-    d.innerHTML=`<div class="pd"></div><span style="flex:1">${i+1}. ${p.n}</span><span style="color:#8b949e;font-size:.7rem" id="pt-${i}">&mdash;</span>`;
+    d.innerHTML='<div class="pd"></div><span style="flex:1">'+(i+1)+'. '+p.n+'</span><span style="color:#8b949e;font-size:.7rem" id="pt-'+i+'">-</span>';
     l.appendChild(d);
   });
 }
-
 async function login(email,pass){
   const r=await fetch(API+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
   if(!r.ok)throw new Error(r.status);return r.json();
@@ -219,118 +240,211 @@ async function api(path,tok,method='GET',body=null){
   if(!r.ok){const e=await r.text();throw new Error(path+' '+r.status+': '+e)}
   return r.json();
 }
+function abrirGoogleMaps(){
+  const u=unidades[uSel]; if(!u)return;
+  const cur=posDe(u);
+  const sig=PARS.map(p=>({p,s:pasoDe(u,p)})).filter(x=>x.s>=u.step).sort((a,b)=>a.s-b.s)[0];
+  const d=sig?sig.p:PARS[PARS.length-1];
+  window.open('https://www.google.com/maps/dir/'+cur.lat+','+cur.lng+'/'+d.lat+','+d.lng,'_blank');
+  log('c','Abriendo Google Maps hacia '+d.n,'i');
+}
 
-function abrirGoogleMaps(){var cur=step>0?ROUTE[step-1]:ROUTE[0];var nextP=PARS.find(function(p){return step<=p.st;})||PARS[PARS.length-1];var url="https://www.google.com/maps/dir/"+cur.lat+","+cur.lng+"/"+nextP.lat+","+nextP.lng;window.open(url,"_blank");log("c","Abriendo Google Maps â "+nextP.n,"i");}
-function updateMaps(lat,lng,spd){
-  const ic=L.divIcon({html:'<div style="background:#1b4332;border:2px solid #3fb950;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px">🚌</div>',className:'',iconSize:[26,26],iconAnchor:[13,13]});
-  [[mA,'mkA'],[mC,'mkC'],[mP,'mkP']].forEach(([m,k])=>{
-    if(window[k])window[k].setLatLng([lat,lng]);
-    else window[k]=L.marker([lat,lng],{icon:ic}).addTo(m);
-  });
-  document.getElementById('a-ra').textContent='1';
-  document.getElementById('a-co').textContent='1';
-  document.getElementById('a-vel').textContent=spd+' km/h';
-  document.getElementById('a-gp').textContent=new Date().toLocaleTimeString('es-PE');
-  document.getElementById('a-st').textContent='🌺 EN RUTA';
+// Cada unidad toma su propia ruta, conductor y vehiculo. Las de indice par
+// van de ida, las impares de vuelta. Salen escalonadas.
+function crearUnidades(n){
+  unidades=[];
+  const max=Math.min(n,CONDS.length,VEHS.length);
+  for(let i=0;i<max;i++){
+    const ri=RUTAS.length>1 ? i%RUTAS.length : 0;
+    unidades.push({
+      i, id:'U-0'+(i+1), tono:TONOS[i%TONOS.length],
+      ruta:RUTAS[ri], cond:CONDS[i%CONDS.length], veh:VEHS[i%VEHS.length],
+      dir: ri===0?1:-1,
+      step:-i*2, ejecId:null, fin:false, mkA:null, mkC:null, mkP:null, avisado:false
+    });
+  }
+  uSel=0;
+  const s=document.getElementById('sel-u');
+  if(s){
+    s.innerHTML=unidades.map(u=>'<option value="'+u.i+'">'+u.id+' - '+(u.veh&&u.veh.placa||'')+' - '+nombreDir(u)+'</option>').join('');
+    s.onchange=()=>{uSel=+s.value;};
+  }
+  return unidades.length;
+}
+async function iniciarUnidad(u){
+  try{
+    const r=await api('/api/rutas/'+u.ruta.id+'/iniciar',aT,'POST',{conductorId:u.cond.id,vehiculoId:u.veh.id});
+    u.ejecId=r.id||r.ejecucionId||(r.ejecucion&&r.ejecucion.id)||null;
+    log('a',u.id+' ('+nombreDir(u)+') ejecucion '+(u.ejecId||'sin id'),'s');
+  }catch(e){ u.ejecId=null; log('a',u.id+' no pudo iniciar: '+e,'e'); }
+}
+async function finalizarUnidad(u){
+  u.fin=true;
+  log('c',u.id+' turno finalizado','s');
+  if(u.ejecId){ try{ await api('/api/rutas/'+u.ejecId+'/finalizar',aT,'POST'); }catch(e){ log('a',u.id+' finalizar: '+e,'e'); } }
 }
 
 async function loginAll(){
   log('a','Autenticando usuarios...','i');
-  try{const r=await login('admin@empresa.com','admin123');aT=r.token;document.getElementById('ls-a').textContent='Admin: OK';document.getElementById('ls-a').className='lbadge ok';log('a','Login admin OK','s');}catch(e){log('a','Error admin: '+e,'e');}
-  try{const r=await login('conductor@empresa.com','admin123');cT=r.token;document.getElementById('ls-c').textContent='Conductor: OK';document.getElementById('ls-c').className='lbadge ok';log('c','Login Juan Mamani OK','s');}catch(e){log('c','Error conductor: '+e,'e');}
-  try{const r=await login('pasajero@empresa.com','admin123');pT=r.token;document.getElementById('ls-p').textContent='Pasajero: OK';document.getElementById('ls-p').className='lbadge ok';log('p','Login Maria Lopez OK','s');}catch(e){log('p','Error pasajero: '+e,'e');}
+  const cuentas=[['admin@empresa.com','ls-a','a','Admin'],['conductor@empresa.com','ls-c','c','Conductor'],['pasajero@empresa.com','ls-p','p','Pasajero']];
+  for(const c of cuentas){
+    const em=c[0],badge=c[1],panel=c[2],rot=c[3];
+    try{
+      const r=await login(em,'admin123');
+      if(panel==='a')aT=r.token; else if(panel==='c')cT=r.token; else pT=r.token;
+      const b=document.getElementById(badge); if(b){b.textContent=rot+': OK';b.className='lbadge ok';}
+      log(panel,'Login '+rot+' OK','s');
+    }catch(e){ log(panel,'Error '+rot+': '+e,'e'); }
+  }
 }
-
 async function loadData(){
-  try{const r=await api('/api/rutas',aT);const L=r.rutas||r;if(L.length){rutaId=L[0].id;document.getElementById('a-rn').textContent=L[0].nombre;log('a','Ruta: '+L[0].nombre,'s');}else{log('a','No hay rutas cargadas en la base','e');}}catch(e){log('a','Rutas: '+e,'e');}
-  try{const r=await api('/api/conductores',aT);const L=r.conductores||r;if(L.length){condId=L[0].id;document.getElementById('a-cn').textContent=L[0].usuario?.nombre||'Juan Mamani';}else{log('a','No hay conductores en la base: la ruta no va a poder iniciarse','e');}}catch(e){log('a','Conductores: '+e,'e');}
-  try{const r=await api('/api/vehiculos',aT);const L=r.vehiculos||r;if(L.length){vehId=L[0].id;document.getElementById('a-vh').textContent=L[0].placa+' '+L[0].modelo;}else{log('a','No hay vehiculos en la base: la ruta no va a poder iniciarse','e');}}catch(e){log('a','Vehiculos: '+e,'e');}
+  try{const r=await api('/api/rutas',aT);RUTAS=r.rutas||r;
+      if(RUTAS.length){document.getElementById('a-rn').textContent=RUTAS.length+' ruta(s)';log('a','Rutas: '+RUTAS.length,'s');}
+      else log('a','No hay rutas en la base','e');
+  }catch(e){log('a','Rutas: '+e,'e');}
+  try{const r=await api('/api/conductores',aT);CONDS=r.conductores||r;
+      document.getElementById('a-cn').textContent=CONDS.length+' conductor(es)';
+      if(!CONDS.length)log('a','No hay conductores: no se puede iniciar','e');
+  }catch(e){log('a','Conductores: '+e,'e');}
+  try{const r=await api('/api/vehiculos',aT);VEHS=r.vehiculos||r;
+      document.getElementById('a-vh').textContent=VEHS.length+' vehiculo(s)';
+      if(!VEHS.length)log('a','No hay vehiculos: no se puede iniciar','e');
+  }catch(e){log('a','Vehiculos: '+e,'e');}
 }
-
 function connectWS(){
   sock=io(API,{transports:['websocket']});
   sock.on('connect',()=>{document.getElementById('d-ws').className='dot green';document.getElementById('s-ws').textContent='WebSocket: conectado OK';log('a','WS conectado','s');});
   sock.on('disconnect',()=>{document.getElementById('d-ws').className='dot red';document.getElementById('s-ws').textContent='WebSocket: desconectado';});
-  sock.on('gps:update',d=>{if(d.lat)updateMaps(d.lat,d.lng,d.velocidad||0);});
+}
+function iconoBus(tono,id){
+  return L.divIcon({html:'<div style="background:#0d1117;border:2px solid '+tono+';border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:'+tono+'">'+id.replace('U-0','')+'</div>',className:'',iconSize:[28,28],iconAnchor:[14,14]});
+}
+function pintar(){
+  const vivas=unidades.filter(u=>!u.fin&&u.step>=0);
+  unidades.forEach(u=>{
+    if(u.step<0||u.fin){ ['mkA','mkC','mkP'].forEach(k=>{ if(u[k]){ u[k].remove(); u[k]=null; } }); return; }
+    const pt=posDe(u);
+    [[mA,'mkA'],[mC,'mkC'],[mP,'mkP']].forEach(par=>{
+      const m=par[0],k=par[1];
+      if(u[k])u[k].setLatLng([pt.lat,pt.lng]);
+      else u[k]=L.marker([pt.lat,pt.lng],{icon:iconoBus(u.tono,u.id)}).addTo(m).bindPopup(u.id+' - '+nombreDir(u));
+    });
+  });
+  document.getElementById('a-ra').textContent=vivas.length;
+  document.getElementById('a-co').textContent=unidades.length;
+  document.getElementById('a-pa').textContent=vivas.length*16;
+  const vel=vivas.length?Math.round(vivas.reduce((s,u)=>s+posDe(u).spd,0)/vivas.length):0;
+  document.getElementById('a-vel').textContent=vel+' km/h';
+  document.getElementById('a-gp').textContent=new Date().toLocaleTimeString('es-PE');
+  document.getElementById('a-st').textContent=vivas.length?'EN RUTA':'sin unidades activas';
+  const ul=document.getElementById('ulist');
+  if(ul) ul.innerHTML=unidades.map(u=>{
+    const est=u.fin?'completada':u.step<0?'sale en '+Math.abs(u.step):'paso '+u.step+'/'+(ROUTE.length-1);
+    const pt=(u.step>=0&&!u.fin)?posDe(u):null;
+    return '<div class="pi"><div class="pd" style="background:'+u.tono+'"></div>'+
+      '<span style="flex:1">'+u.id+' - '+nombreDir(u)+'</span>'+
+      '<span style="color:#8b949e;font-size:.7rem">'+est+(pt?' - '+pt.spd+'km/h':'')+'</span></div>';
+  }).join('');
+  const u=unidades[uSel];
+  if(u){
+    const pt=posDe(u);
+    document.getElementById('c-pos').textContent=u.step<0?'Esperando salida':pt.lat.toFixed(5)+', '+pt.lng.toFixed(5);
+    document.getElementById('c-spd').textContent=(u.step<0?0:pt.spd)+' km/h';
+    document.getElementById('c-st').textContent=u.fin?'Turno completado':u.step<0?'Por salir':'EN RUTA';
+    const seg=Math.floor((Date.now()-t0)/1000);
+    document.getElementById('c-dur').textContent='Duracion: '+Math.floor(seg/60)+':'+(seg%60).toString().padStart(2,'0');
+    PARS.forEach((p,i)=>{
+      const e=document.getElementById('pi-'+i); if(!e)return;
+      const s=pasoDe(u,p);
+      if(u.step>s){e.className='pi passed';e.querySelector('.pd').style.background='#3fb950';document.getElementById('pt-'+i).textContent='Pasado';}
+      else if(u.step===s){e.className='pi current';document.getElementById('pt-'+i).textContent='Aqui';}
+      else {e.className='pi upc';e.querySelector('.pd').style.background='';document.getElementById('pt-'+i).textContent='-';}
+    });
+  }
+  // El pasajero sigue a la unidad MAS CERCANA de su paradero, sea cual sea
+  // su direccion. Antes seguia a la unica que habia.
+  const mp=PARS[MI_PARADERO];
+  const cand=vivas.map(x=>({u:x,d:dist(posDe(x).lat,posDe(x).lng,mp.lat,mp.lng)})).sort((a,b)=>a.d-b.d)[0];
+  if(cand){
+    const uc=cand.u,d=cand.d;
+    document.getElementById('p-dist').textContent=fd(d);
+    document.getElementById('p-vel').textContent=posDe(uc).spd+' km/h';
+    document.getElementById('p-ruta').textContent=uc.id+' - '+nombreDir(uc);
+    const spd=posDe(uc).spd;
+    if(spd>0){const es=d/(spd/3.6);document.getElementById('p-eta').textContent=d<100?'Llegando!':Math.ceil(es/60)+' min';}
+    let ult='-',prx='-';
+    PARS.forEach(p=>{const s=pasoDe(uc,p); if(uc.step>s)ult=p.n; else if(prx==='-')prx=p.n;});
+    document.getElementById('p-ult').textContent=ult;
+    document.getElementById('p-prx').textContent=prx;
+    if(d<600&&d>80){
+      document.getElementById('p-al').classList.add('show');
+      document.getElementById('p-alt').textContent=uc.id+' esta a '+fd(d)+' de tu paradero!';
+      document.getElementById('p-st').textContent='Bus muy cerca!';
+      if(!uc.avisado){uc.avisado=true;log('p',uc.id+' a '+fd(d)+' de '+mp.n,'w');
+        document.getElementById('c-al').classList.add('show');
+        document.getElementById('c-alt').textContent='Pasajero esperando en '+mp.n+' (Maria Lopez)';
+        log('c','Alerta: pasajero en '+mp.n+' para '+uc.id,'w');}
+    } else if(d<80){document.getElementById('p-st').textContent='Bus en mi paradero!';document.getElementById('p-eta').textContent='Llegando!';}
+    else document.getElementById('p-al').classList.remove('show');
+  }
+  const pasos=unidades.length?Math.max.apply(null,unidades.map(x=>Math.min(Math.max(x.step,0),ROUTE.length-1))):0;
+  document.getElementById('prg').style.width=Math.round(pasos/(ROUTE.length-1)*100)+'%';
+  document.getElementById('prg-l').textContent=vivas.length+' unidad(es) en ruta';
 }
 
 async function start(){
   if(!aT){alert('Tokens no cargados, espera un momento');return;}
+  if(!RUTAS.length||!CONDS.length||!VEHS.length){log('a','Faltan rutas, conductores o vehiculos','e');return;}
+  const sel=document.getElementById('sel-n');
+  const creadas=crearUnidades(+((sel&&sel.value)||4));
+  if(!creadas){log('a','No se pudo crear ninguna unidad','e');return;}
   document.getElementById('btn-s').disabled=true;
   document.getElementById('btn-x').disabled=false;
-  running=true;step=0;t0=Date.now();
-  log('a','=== INICIO SIMULACION ===','w');
+  document.getElementById('gmaps-btn').classList.add('show');
+  running=true;t0=Date.now();
+  log('a','=== INICIO SIMULACION: '+creadas+' unidades ===','w');
   log('c','=== INICIO TURNO ===','w');
   log('p','=== BUS EN CAMINO ===','w');
-  try{
-    const b={conductorId:condId,vehiculoId:vehId};
-    const r=await api('/api/rutas/'+rutaId+'/iniciar',aT,'POST',b);
-    ejecId=r.id||r.ejecucionId||(r.ejecucion&&r.ejecucion.id);
-    log('a','Ejecucion iniciada: '+(ejecId||JSON.stringify(r).substring(0,60)),'s');
-    document.getElementById('c-st').textContent='🌺 EN RUTA';
-    document.getElementById('p-st').textContent='🏹 Bus en camino...';
-    document.getElementById('a-pa').textContent='1';
-  }catch(e){log('a','Inicio ruta: '+e,'e');ejecId='sim';}
+  for(const u of unidades) await iniciarUnidad(u);
   simInt=setInterval(tick,2200);tick();
 }
-
 async function tick(){
-  if(!running||step>=ROUTE.length){if(step>=ROUTE.length)await finish();return;}
-  const pt=ROUTE[step];
-  updateMaps(pt.lat,pt.lng,pt.spd);
-  document.getElementById('c-pos').textContent=pt.lat.toFixed(5)+', '+pt.lng.toFixed(5);
-  document.getElementById('c-spd').textContent=pt.spd+' km/h';
-  const el=Math.floor((Date.now()-t0)/1000);
-  document.getElementById('c-dur').textContent='Duracion: '+Math.floor(el/60)+':'+(el%60).toString().padStart(2,'0');
-  if(ejecId&&ejecId!=='sim'&&cT){
-    try{await api('/api/gps/coordenada',cT,'POST',{rutaEjecucionId:ejecId,lat:pt.lat,lng:pt.lng,velocidad:pt.spd});}catch(_){}
+  if(!running)return;
+  for(const u of unidades){
+    if(u.fin)continue;
+    u.step++;
+    if(u.step<0)continue;
+    if(u.step>ROUTE.length-1){await finalizarUnidad(u);continue;}
+    if(u.ejecId&&cT){
+      const pt=posDe(u);
+      try{await api('/api/gps/coordenada',cT,'POST',{rutaEjecucionId:u.ejecId,lat:pt.lat,lng:pt.lng,velocidad:pt.spd});}catch(_){}
+    }
   }
-  PARS.forEach((p,i)=>{
-    const el=document.getElementById('pi-'+i);if(!el)return;
-    if(step>=p.st+1){el.className='pi passed';el.querySelector('.pd').style.background='#3fb950';document.getElementById('pt-'+i).textContent='Pasado';}
-    else if(step===p.st){el.className='pi current';document.getElementById('pt-'+i).textContent='Aqui';if(i>0)log('c','Paradero: '+p.n,'s');}
-  });
-  const myP=PARS[2];
-  const d=dist(pt.lat,pt.lng,myP.lat,myP.lng);
-  document.getElementById('p-dist').textContent=fd(d);
-  document.getElementById('p-vel').textContent=pt.spd+' km/h';
-  if(pt.spd>0){const es=d/(pt.spd/3.6);document.getElementById('p-eta').textContent=d<100?'Llegando!':Math.ceil(es/60)+' min';}
-  let ult='&mdash;',prx='&mdash;';
-  PARS.forEach((p,i)=>{if(step>p.st)ult=p.n;else if(prx==='&mdash;'&&step<=p.st)prx=p.n;});
-  document.getElementById('p-ult').textContent=ult;
-  document.getElementById('p-prx').textContent=prx;
-  if(d<600&&d>80){
-    document.getElementById('p-al').classList.add('show');
-    document.getElementById('p-alt').textContent='El bus esta a '+fd(d)+' de tu paradero!';
-    document.getElementById('p-st').textContent='🟠 Bus muy cerca!';
-    log('p','Bus a '+fd(d)+' de Sachaca','w');
-    if(!window._ca){window._ca=true;document.getElementById('c-al').classList.add('show');document.getElementById('c-alt').textContent='Pasajero esperando en Sachaca (Maria Lopez)';log('c','Alerta: pasajero en Sachaca','w');}
-  }else if(d<80){document.getElementById('p-st').textContent='🌺 Bus en mi paradero!';document.getElementById('p-eta').textContent='Llegando!';}
-  const pct=Math.round(step/(ROUTE.length-1)*100);
-  document.getElementById('prg').style.width=pct+'%';
-  document.getElementById('prg-l').textContent=PARS.filter((p,i)=>step>p.st).length+' / 5 paraderos';
-  step++;
+  pintar();
+  if(unidades.length&&unidades.every(u=>u.fin))await terminar();
 }
-
-async function finish(){
+async function terminar(){
   clearInterval(simInt);running=false;
-  document.getElementById('btn-s').disabled=false;document.getElementById('btn-x').disabled=true;
+  document.getElementById('btn-s').disabled=false;
+  document.getElementById('btn-x').disabled=true;
   document.getElementById('gmaps-btn').classList.remove('show');
-log('a','=== RUTA COMPLETADA ===','s');log('c','Turno finalizado - Plaza de Armas','s');log('p','Viaje completado','s');
-  document.getElementById('c-st').textContent='Turno completado';
+  log('a','=== TODAS LAS UNIDADES COMPLETARON ===','s');
+  log('p','Viaje completado','s');
   document.getElementById('p-st').textContent='Viaje completado';
-  document.getElementById('a-ra').textContent='0';document.getElementById('a-co').textContent='0';document.getElementById('a-pa').textContent='0';
-  document.getElementById('prg').style.width='100%';document.getElementById('prg-l').textContent='5 / 5 paraderos';
-  if(ejecId&&ejecId!=='sim'){try{await api('/api/rutas/'+ejecId+'/finalizar',aT,'POST');log('a','Finalizado en backend','s');}catch(e){log('a','Finalizar: '+e,'e');}}
+  document.getElementById('prg').style.width='100%';
+  document.getElementById('prg-l').textContent='0 unidad(es) en ruta';
 }
-
-function stop(){clearInterval(simInt);running=false;document.getElementById('btn-s').disabled=false;document.getElementById('btn-x').disabled=true;document.getElementById('gmaps-btn').classList.remove('show');log('a','Simulacion detenida','w');}
-
+function stop(){
+  clearInterval(simInt);running=false;
+  document.getElementById('btn-s').disabled=false;
+  document.getElementById('btn-x').disabled=true;
+  document.getElementById('gmaps-btn').classList.remove('show');
+  log('a','Simulacion detenida','w');
+}
 async function checkBackend(){
   try{const r=await fetch(API+'/health');const d=await r.json();document.getElementById('d-be').className='dot green';document.getElementById('s-be').textContent='Backend: conectado OK (v'+d.version+')';log('a','Backend OK','s');return true;}
   catch(e){document.getElementById('d-be').className='dot red';document.getElementById('s-be').textContent='Backend: desconectado (Render free puede tardar 30s...)';log('a','Backend no responde, reintentando...','e');return false;}
 }
-
 async function init(){
   initMaps();initPList();
   log('a','Verificando backend...','i');
