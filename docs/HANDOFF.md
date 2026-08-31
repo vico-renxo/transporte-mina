@@ -108,6 +108,42 @@ y les asigna paradero.
 
 ⚠️ No existe pantalla para cambiar contraseña (el endpoint sí existe).
 
+## 4.b.2 Datos de prueba cargados el 2026-08-31
+
+Se cargaron por el editor SQL de Supabase (`prisma/datos-prueba.sql`), **sin
+necesitar `DATABASE_URL`**: el editor del panel ya tiene acceso a la base, así
+que no hace falta sacar la contraseña de la base a ningún archivo.
+
+Estado de la base después de cargarlos:
+
+| | |
+|---|---|
+| Ruta 1 — Mina Central → Arequipa | 18 pasajeros, 5 paraderos |
+| Ruta 2 — Arequipa → Mina Central (prueba) | 15 pasajeros, 5 paraderos |
+| Conductores | 5 (1 real + 4 de prueba) |
+| Vehículos | 5, capacidad 16 |
+| Usuarios | 39 |
+
+La Ruta 2 es la Ruta 1 con los paraderos en orden invertido, para tener
+unidades yendo en **direcciones opuestas**.
+
+Todos los de prueba llevan `zz-prueba-*@prueba.local` y placas `ZZP-`. La
+contraseña de todos ellos es la misma y es descartable: **`PruebaFlota2026!`**.
+No es un secreto: son cuentas de juguete que se borran con
+`node prisma/purgar-pruebas.js --borrar`.
+
+**Zombi cerrado**: había una `RutaEjecucion` en `EN_RUTA` desde el 2026-07-29,
+con 0 coordenadas y sin `finalizadaEn` — un mes colgada, y el dashboard la
+contaba como ruta activa. Pasada a `SUSPENDIDA`. Ojo con el enum: los valores
+válidos son `PENDIENTE`, `EN_RUTA`, `COMPLETADA`, `SUSPENDIDA`. **No existe
+`CANCELADA`** (lo intenté y Postgres lo rechazó).
+
+**Límite conocido**: `web/public/simulacion.html` corre **una sola unidad**.
+Toma la primera ruta y un conductor, y está escrita para un actor de cada
+tipo. Los datos para 4 unidades en 2 direcciones ya están en la base, pero esa
+página todavía no los usa. Para verlas todas juntas hoy está
+`simulacion-flota.html`, que es cerrada y no toca la base.
+
 ## 4.c Rotar la contraseña del admin
 
 No hay pantalla para cambiar contraseña. El endpoint
