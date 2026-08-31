@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-08-31 — Simulación de flota
+
+Página nueva `web/public/simulacion-flota.html`: 4 unidades de 16 plazas sobre
+la Ruta 1 real, con 10/20/30/48 pasajeros que declaran al azar si están en su
+paradero, se van por sus medios o no viajan. Autocontenida, sin red, sin base
+de datos, publicable como artifact.
+
+Tres bugs (23, 24, 25 del HANDOFF) encontrados corriendo la lógica en Node con
+un shim de DOM, antes de publicar. Uno de ellos dejaba la página en blanco al
+cargar; otro no se veía a simple vista: cada unidad recogía en un solo paradero
+y la pantalla se veía perfecta.
+
+Documentado en HANDOFF §5 (bugs 23–25) y §8.d (cómo se prueban las páginas
+sueltas), y en MAPA_FUNCIONES §Páginas sueltas.
+
 ## BUGS NUEVOS ENCONTRADOS (no estaban en tu documentación)
 
 ### BUG 11 — El login nunca devolvía conductorId ni pasajeroId

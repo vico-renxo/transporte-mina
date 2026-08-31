@@ -97,6 +97,13 @@ Cualquier consumidor nuevo tiene que usar `d.conductores || d`.
 21. `POST /rutas/:id/iniciar` y `POST /rutas/iniciar` eran dos handlers separados con las mismas roles en distinto orden. Ahora comparten `ROLES_INICIAR` y `handlerIniciar`: divergir se volvió imposible.
 22. `POST /auth/cambiar-password` no validaba nada: aceptaba una contraseña de un carácter. Ahora exige 8 y que sea distinta de la actual, del lado del servidor.
 
+23. `simulacion-flota.html` moría al cargar: `reiniciar()` llamaba a `pausar()`, y `pausar()` leía `estado.terminado` cuando `estado` todavía era `null`. La página se veía en blanco. Ahora `pausar()` valida `estado &&`.
+24. En esa misma simulación, `unidad` y `paradero` se calculaban los dos con `i % 4`, así que quedaban acoplados: la unidad V-01 recogía **todos** sus pasajeros en Variante Uchumayo, la V-02 todos en Sachaca, y así. El paradero ahora sale de `Math.floor(i/4)`, independiente de la unidad.
+25. Esa simulación asignaba pasajeros al último paradero (Plaza de Armas), que es el **destino**: nadie sube ahí. Ahora los pasajeros solo se asignan a paraderos intermedios.
+
+Los tres se encontraron **antes de publicar**, corriendo la lógica en Node con
+un shim de DOM (ver §8.d). Ninguno llegó a producción.
+
 14. ~~Latente~~ **CORREGIDO 2026-08-30** (falta desplegar el Worker): el CF Worker no reenvía el body en POST. No molesta porque la app llama a Render directo. Si algún día enrutás por `/api` del Worker, esto explota primero.
 
 ## 6. Cómo se sube código (importante)
@@ -313,6 +320,41 @@ El minuto de arranque de Render en el primer POST. Eso es del plan free de
 Render, no de Cloudflare. Se arregla pagando Render, o migrando el backend a
 Workers — pero eso último es reescribir Socket.io con Durable Objects y
 Prisma con un driver HTTP: proyecto aparte, no un ajuste.
+
+## 8.d Cómo se prueba una página suelta sin navegador
+
+`web/public/simulacion-flota.html` es una página autocontenida: HTML, CSS y JS
+en un solo archivo, sin build. No pasa por `npm run build`, así que **ningún
+guardián ni el CI la miran**. Un error de JS ahí no lo detecta nadie.
+
+El método que sí la prueba, y que encontró los bugs 23, 24 y 25:
+
+1. Se extrae el bloque `<script>` del HTML con un split.
+2. Se arma un shim mínimo de DOM: `document.getElementById` devuelve objetos
+   con `innerHTML` / `textContent` / `value` escribibles, `getComputedStyle`
+   devuelve un color fijo, `setInterval` no hace nada.
+3. Se corre la simulación entera en un `while` hasta que cierra el turno, para
+   10, 20, 30 y 48 pasajeros, varias veces (hay azar de por medio).
+4. Se afirman invariantes, no apariencia:
+   - la suma de los cinco estados es igual al total de pasajeros;
+   - ninguna unidad supera las 16 plazas;
+   - nadie queda en estado `espera` al cerrar el turno;
+   - las 4 unidades llegan al final de la ruta;
+   - nadie está asignado al paradero 0 ni al último.
+
+La regla general, que ya vale para todo el proyecto: **una aserción sobre el
+comportamiento vale más que mirar la pantalla**. Mirar la pantalla no habría
+mostrado el bug 24 — se veía perfecto, solo que mal.
+
+### Restricción de los artifacts
+
+Una página publicada como artifact **no puede cargar Leaflet ni los mosaicos de
+OpenStreetMap**: la CSP solo admite scripts de cdnjs y hojas de estilo de
+Google Fonts; imágenes y `fetch` externos están bloqueados. Por eso el
+recorrido de `simulacion-flota.html` está dibujado en SVG, proyectando las
+coordenadas reales de los paraderos a un `viewBox`, en vez de sobre un mapa.
+`simulacion.html`, que se sirve desde `viczul.com/transporte/`, sí usa Leaflet
+porque ahí no rige esa CSP. No unificar las dos a la ligera.
 
 ## 9. Documentos hermanos
 

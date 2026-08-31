@@ -78,6 +78,35 @@ Worker de Cloudflare y separación del socket.
 | `lib/socket.ts` | `getSocket()`, `disconnectSocket()` | Socket del panel admin. Usa `NEXT_PUBLIC_SOCKET_URL`. |
 | `lib/api.ts` | 29 funciones (`loginApi`, `getRutas`, `aprobarPasajero`…) | Cliente HTTP del panel admin |
 
+## Páginas sueltas (`web/public/`)
+
+No pasan por el build de Next: se sirven tal cual desde
+`viczul.com/transporte/<archivo>.html`. Sin TypeScript, sin guardianes, sin CI.
+Lo que se rompa ahí no lo detecta nadie salvo que se pruebe a mano (§8.d del
+HANDOFF).
+
+### `simulacion.html`
+Simulación contra el sistema **real**: pide `/api/rutas`, `/api/conductores` y
+`/api/vehiculos`, crea una `RutaEjecucion` y emite GPS por Socket.io. Usa
+Leaflet con mosaicos de OpenStreetMap. **Escribe en la base de datos.**
+
+### `simulacion-flota.html`
+Simulación **cerrada**, sin red y sin base de datos: 4 unidades de 16 plazas
+sobre las coordenadas reales de la Ruta 1. Sirve para mostrar el flujo a
+alguien sin tocar producción, y funciona publicada como artifact.
+
+| Función | Qué hace |
+|---|---|
+| `proy(p)` | Proyecta lat/lng al `viewBox` del SVG, normalizando contra el mínimo y el máximo de los paraderos. Sustituye al mapa: la CSP de un artifact bloquea los mosaicos. |
+| `posEnRuta(t)` | Interpola la posición de una unidad dentro del tramo actual. `t` va de 0 a `TOTAL = (paraderos-1) * TRAMOS`. |
+| `crear(nPas)` | Arma el estado inicial. Las 4 unidades salen escalonadas (`t = -i*12`). `unidad = i % 4` reparte parejo; `paradero = 1 + Math.floor(i/4) % 3` reparte **independiente de la unidad** (bug 24) y nunca cae en Mina Central ni en el destino (bug 25). |
+| `paso()` | Un tick de reloj (2 min). Los pasajeros que aún no declararon y tienen su unidad cerca deciden al azar: 72% espera, 18% se va por sus medios, 10% no viaja. Las unidades avanzan; al llegar a un paradero suben los que estaban esperando **hasta las 16 plazas**, y al que no entra se le marca ausente con línea en la bitácora. |
+| `pintar()` | Redibuja KPIs, SVG, tarjetas de unidad, grilla de pasajeros y bitácora. Lee los colores con `getComputedStyle` para que el SVG siga al tema claro/oscuro. |
+| `arrancar()` / `pausar()` / `reiniciar()` | Controles. `pausar()` valida `estado &&` porque `reiniciar()` la llama antes de que exista el estado (bug 23). |
+
+Prueba: extraer el `<script>` y correrlo en Node con un shim de DOM
+(HANDOFF §8.d). No hay forma de que el CI la cubra.
+
 ## Worker de Cloudflare (`worker/`)
 
 | Función | Qué hace |
