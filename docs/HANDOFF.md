@@ -64,24 +64,42 @@ Los guardianes (§7) vigilan las reglas 1, 2, 3, 6 y 8 automáticamente.
 
 ## 4. Credenciales demo
 
-> ⚠️ **RIESGO ABIERTO (2026-08-31): estas credenciales están publicadas.**
-> `prisma/seed.js` está versionado en un repo **público** y contiene las
-> contraseñas en texto plano. `https://viczul.com/transporte/login/` es
-> alcanzable desde cualquier parte de internet. Si ese seed se corrió alguna
-> vez contra la base de producción, **cualquiera que encuentre el repo entra
-> como ADMIN**. Ver §4.b.
+> ⚠️ **RIESGO CONFIRMADO (2026-08-31): la cuenta ADMIN existe y está activa.**
+> `admin@empresa.com` está en la base de producción, activa (verificado por
+> consulta directa). Su contraseña está documentada acá y en el repo
+> **público** de GitHub. `https://viczul.com/transporte/login/` es alcanzable
+> desde cualquier parte de internet.
+>
+> **Cualquiera que lea este archivo o el repo puede entrar como administrador.**
+>
+> No es urgente por los datos que hay hoy (5 usuarios, 1 ruta de prueba), pero
+> deja de ser aceptable en el momento en que entre un dato real. Cómo rotarla
+> sin exponerla: §4.c.
 
-| Rol | Email | Password |
-|---|---|---|
-| Admin | admin@empresa.com | admin123 |
-| Supervisor | supervisor@empresa.com | super123 |
-| Conductor | conductor1@empresa.com | cond123 |
-| Pasajero | pasajero1@empresa.com | pas123 |
-| Pasajero | pasajero2@empresa.com | pas123 |
+**Consultado directamente en Supabase el 2026-08-31.** La base tiene 5 usuarios:
 
-Esta tabla decía antes `conductor@empresa.com` y `pasajero@empresa.com`, las dos
-con `admin123`. **No coincidía con `prisma/seed.js`**, que es quien las crea.
-Corregido contra el código el 2026-08-31.
+| Rol | Email | Nombre | Activo |
+|---|---|---|---|
+| ADMIN | admin@empresa.com | Administrador | sí |
+| CONDUCTOR | conductor@empresa.com | Juan Mamani | sí |
+| PASAJERO | pasajero@empresa.com | María López | sí |
+| PASAJERO | pedro.gps@empresa.com | Pedro Prueba GPS | sí |
+| PASAJERO | victorcaracela@gmail.com | Victor Renzo Caracela Flores | sí |
+
+Las contraseñas de los tres primeros están documentadas como `admin123`. **No
+se verificaron probándolas** (no se prueban contraseñas contra un sistema en
+producción); lo que sí está verificado es que las cuentas existen y están
+activas.
+
+> ⚠️ **`prisma/seed.js` NO es el origen de estos datos y no coincide con la
+> base.** El seed crea `conductor1@`, `pasajero1@`, `pasajero2@` y un
+> `supervisor@`; ninguno existe en producción. Correrlo contra esta base
+> **agregaría 4 usuarios nuevos** en vez de actualizar los que hay.
+>
+> Esto ya causó un error: el 2026-08-31 esta tabla se "corrigió" para que
+> coincidiera con `seed.js`, dando por sentado que el seed era la fuente de
+> verdad. Era al revés. **Para credenciales, la fuente de verdad es la base,
+> y se consulta.**
 
 Un solo formulario de login para los tres: enruta por el campo `rol` que
 devuelve el backend. Los pasajeros nuevos se registran solos en
@@ -89,6 +107,30 @@ devuelve el backend. Los pasajeros nuevos se registran solos en
 y les asigna paradero.
 
 ⚠️ No existe pantalla para cambiar contraseña (el endpoint sí existe).
+
+## 4.c Rotar la contraseña del admin
+
+No hay pantalla para cambiar contraseña. El endpoint
+`POST /auth/cambiar-password` existe pero exige estar logueado, y el problema
+es justamente que la contraseña actual está publicada.
+
+    node scripts/hashear-password.js
+    node scripts/hashear-password.js conductor@empresa.com
+
+Pide la contraseña dos veces con la escritura tapada, exige 12 caracteres
+mínimo, y **solo imprime el `UPDATE` de SQL con el hash bcrypt**. La
+contraseña en claro nunca se escribe en disco ni sale de tu máquina. El
+`UPDATE` se pega en el editor SQL de Supabase.
+
+**El token viejo muere solo.** El login firma una huella del hash en el campo
+`pv` (ver `huellaDe` / `huellaSigueValida` en `auth.service.js`); al cambiar el
+hash esa huella deja de coincidir y las sesiones abiertas caen. No hace falta
+tocar nada más.
+
+Después de rotarla, **borrar la contraseña de este documento y de
+`prisma/seed.js`**, que están en un repo público. Ojo: el hash viejo sigue en
+el historial de git; el repo es público desde el principio, así que la
+contraseña vieja hay que darla por quemada para siempre.
 
 ## 4.b Usuarios de prueba (crear y purgar)
 
