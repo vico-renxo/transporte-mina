@@ -108,6 +108,41 @@ y les asigna paradero.
 
 ⚠️ No existe pantalla para cambiar contraseña (el endpoint sí existe).
 
+## 4.b Usuarios de prueba (crear y purgar)
+
+Para simular con gente de verdad en la base, sin ensuciarla para siempre:
+
+    node prisma/seed-pruebas.js            # 12 pasajeros y 4 conductores
+    node prisma/seed-pruebas.js 30 4       # 30 pasajeros y 4 conductores
+
+    node prisma/purgar-pruebas.js          # muestra qué borraría, NO borra
+    node prisma/purgar-pruebas.js --borrar # borra de verdad
+
+Necesitan `DATABASE_URL` en el entorno o en un `.env` en la raíz. Se saca del
+panel de Render (variables de entorno del servicio) o de Supabase. **Ese `.env`
+no se versiona nunca.**
+
+Tres cosas que hacen que esto sea seguro, y conviene no deshacerlas:
+
+1. **Marca exacta, no un `LIKE`.** Todo lo creado lleva el prefijo
+   `zz-prueba-` y el dominio `@prueba.local` (dominio reservado, no existe).
+   El purgador exige **las dos cosas**. Un `LIKE '%prueba%'` habría borrado a
+   un usuario real llamado `juan.prueba@gmail.com`; hay un test que lo
+   demuestra (`tests/purga.test.js`, 11 casos).
+2. **Contraseñas al azar en cada corrida**, nunca escritas en el código. El
+   repo es público: una contraseña en un archivo versionado queda publicada
+   para siempre. Se guardan en `credenciales-prueba.local.txt`, ignorado por
+   git.
+3. **El purgador arranca en simulacro.** Muestra la lista y se detiene. Hay
+   que pasarle `--borrar` a propósito.
+
+**Orden de borrado**: el schema **no tiene `onDelete: Cascade` en ninguna
+relación**. Borrar un `Usuario` con checkins lo rechaza Postgres por clave
+foránea. Por eso el purgador va de las hojas a la raíz: coordenadas →
+calificaciones → checkins → estados de turno → ejecuciones → pasajero /
+conductor → usuario. Y por eso mismo la app **da de baja** pasajeros en vez de
+borrarlos (`cambiarActivoPasajero`).
+
 ## 4.b.2 Datos de prueba cargados el 2026-08-31
 
 Se cargaron por el editor SQL de Supabase (`prisma/datos-prueba.sql`), **sin
@@ -155,23 +190,6 @@ ni backend). Extrae el `<script>` de la página misma y lo corre con shims de
 DOM, Leaflet y `fetch`. Verificada con control negativo: al sabotear `idxDe()`
 para que la vuelta no invierta, dos aserciones fallan.
 
-## 4.d Hallazgo abierto: GPS sin dueño
-
-`POST /api/gps/coordenada` exige rol `CONDUCTOR` **pero no verifica que la
-`RutaEjecucion` sea de ese conductor**. Cualquier conductor autenticado puede
-inyectar coordenadas en la ejecución de cualquier otro: mover un bus ajeno en
-el mapa del supervisor y disparar alertas de proximidad falsas a los pasajeros
-de esa ruta.
-
-Se descubrió al hacer multi-unidad la simulación: un solo token de conductor
-mueve las 4 unidades. Para la simulación es cómodo; en producción es un
-agujero.
-
-**Arreglo** (no aplicado, decisión tuya): en `guardarCoordenada`, comparar
-`ejecucion.conductorId` con `req.usuario` y rechazar con 403 si no coinciden.
-Ojo: eso **rompe la simulación multi-unidad** tal como está hoy, que tendría
-que loguearse con cada conductor. Es el precio correcto a pagar.
-
 ## 4.c Rotar la contraseña del admin
 
 No hay pantalla para cambiar contraseña. El endpoint
@@ -196,40 +214,22 @@ Después de rotarla, **borrar la contraseña de este documento y de
 el historial de git; el repo es público desde el principio, así que la
 contraseña vieja hay que darla por quemada para siempre.
 
-## 4.b Usuarios de prueba (crear y purgar)
+## 4.d Hallazgo abierto: GPS sin dueño
 
-Para simular con gente de verdad en la base, sin ensuciarla para siempre:
+`POST /api/gps/coordenada` exige rol `CONDUCTOR` **pero no verifica que la
+`RutaEjecucion` sea de ese conductor**. Cualquier conductor autenticado puede
+inyectar coordenadas en la ejecución de cualquier otro: mover un bus ajeno en
+el mapa del supervisor y disparar alertas de proximidad falsas a los pasajeros
+de esa ruta.
 
-    node prisma/seed-pruebas.js            # 12 pasajeros y 4 conductores
-    node prisma/seed-pruebas.js 30 4       # 30 pasajeros y 4 conductores
+Se descubrió al hacer multi-unidad la simulación: un solo token de conductor
+mueve las 4 unidades. Para la simulación es cómodo; en producción es un
+agujero.
 
-    node prisma/purgar-pruebas.js          # muestra qué borraría, NO borra
-    node prisma/purgar-pruebas.js --borrar # borra de verdad
-
-Necesitan `DATABASE_URL` en el entorno o en un `.env` en la raíz. Se saca del
-panel de Render (variables de entorno del servicio) o de Supabase. **Ese `.env`
-no se versiona nunca.**
-
-Tres cosas que hacen que esto sea seguro, y conviene no deshacerlas:
-
-1. **Marca exacta, no un `LIKE`.** Todo lo creado lleva el prefijo
-   `zz-prueba-` y el dominio `@prueba.local` (dominio reservado, no existe).
-   El purgador exige **las dos cosas**. Un `LIKE '%prueba%'` habría borrado a
-   un usuario real llamado `juan.prueba@gmail.com`; hay un test que lo
-   demuestra (`tests/purga.test.js`, 11 casos).
-2. **Contraseñas al azar en cada corrida**, nunca escritas en el código. El
-   repo es público: una contraseña en un archivo versionado queda publicada
-   para siempre. Se guardan en `credenciales-prueba.local.txt`, ignorado por
-   git.
-3. **El purgador arranca en simulacro.** Muestra la lista y se detiene. Hay
-   que pasarle `--borrar` a propósito.
-
-**Orden de borrado**: el schema **no tiene `onDelete: Cascade` en ninguna
-relación**. Borrar un `Usuario` con checkins lo rechaza Postgres por clave
-foránea. Por eso el purgador va de las hojas a la raíz: coordenadas →
-calificaciones → checkins → estados de turno → ejecuciones → pasajero /
-conductor → usuario. Y por eso mismo la app **da de baja** pasajeros en vez de
-borrarlos (`cambiarActivoPasajero`).
+**Arreglo** (no aplicado, decisión tuya): en `guardarCoordenada`, comparar
+`ejecucion.conductorId` con `req.usuario` y rechazar con 403 si no coinciden.
+Ojo: eso **rompe la simulación multi-unidad** tal como está hoy, que tendría
+que loguearse con cada conductor. Es el precio correcto a pagar.
 
 ## 5. Bugs históricos ya corregidos
 
@@ -530,6 +530,10 @@ coordenadas reales de los paraderos a un `viewBox`, en vez de sobre un mapa.
 porque ahí no rige esa CSP. No unificar las dos a la ligera.
 
 ## 9. Documentos hermanos
+
+**La puerta de entrada es `README.md` en la raíz**, no este archivo: GitHub lo
+muestra solo en la portada del repo, así que es lo único que alguien encuentra
+sin buscarlo. Este HANDOFF es el documento principal una vez adentro.
 
 | Archivo | Para qué |
 |---|---|
